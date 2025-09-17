@@ -286,6 +286,7 @@ class LanPaint_KSamplerAdvanced:
                     "start_at_step": ("INT", {"default": 0, "min": 0, "max": 10000}),
                     "end_at_step": ("INT", {"default": 10000, "min": 0, "max": 10000}),
                     "return_with_leftover_noise": (["disable", "enable"], ),
+                    "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "The amount of denoising applied, lower values will maintain the structure of the initial image allowing for image to image sampling."}),
                 "LanPaint_NumSteps": ("INT", {"default": 5, "min": 0, "max": 100, "tooltip": "The number of steps for the Langevin dynamics, representing the turns of thinking per step."}),
                 "LanPaint_Lambda": ("FLOAT", {"default": 16., "min": 0.1, "max": 50.0, "step": 0.1, "round": 0.1, "tooltip": "The bidirectional guidance scale. Higher values align with known regions more closely, but may result in instability."}),
                 "LanPaint_StepSize": ("FLOAT", {"default": 0.15, "min": 0.0001, "max": 1., "step": 0.01, "round": 0.001, "tooltip": "The step size for the Langevin dynamics. Higher values result in faster convergence but may be unstable."}),
