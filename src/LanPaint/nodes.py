@@ -12,6 +12,7 @@ from comfy.model_base import ModelType
 from .utils import *
 from .lanpaint import LanPaint
 from comfy.model_base import WAN22
+import comfyui_version 
 
 def reshape_mask(input_mask, output_shape,video_inpainting=False):
     dims = len(output_shape) - 2
@@ -30,7 +31,9 @@ def reshape_mask(input_mask, output_shape,video_inpainting=False):
         
         # First reshape input_mask to have proper dimensions for video processing
         # Assume input is (frames, channels, height, width) -> (1, channels, frames, height, width)
-        input_mask = input_mask.permute(1, 0, 2, 3).unsqueeze(0)
+        ## if comfy version < 0.6.0
+        if comfyui_version.__version__ < "0.6.0":
+            input_mask = input_mask.permute(1, 0, 2, 3).unsqueeze(0)
         print('Video case - input_mask after reshaping:', input_mask.shape)
         # Ensure we have the correct 5D shape: (batch, channels, frames, height, width)
         batch_size, channels, frames, height, width = input_mask.shape
@@ -53,12 +56,15 @@ def reshape_mask(input_mask, output_shape,video_inpainting=False):
         # Handle batch dimension
         mask = repeat_to_batch_size(mask, output_shape[0])
     else:  # Original 2D image case
-        mask = torch.nn.functional.interpolate(input_mask, size=output_shape[-2:], mode=scale_mode)
+        if comfyui_version.__version__ < "0.6.0":
+            mask = torch.nn.functional.interpolate(input_mask, size=output_shape[-2:], mode=scale_mode)
+        else:
+            mask = torch.nn.functional.interpolate(input_mask, size=output_shape[2:], mode=scale_mode)
         if mask.shape[1] < output_shape[1]:
             mask = mask.repeat((1, output_shape[1]) + (1,) * dims)[:,:output_shape[1]]
         mask = repeat_to_batch_size(mask, output_shape[0])
     
-    print('resize mask',mask.shape,type(mask),torch.max(mask),torch.min(mask))
+
     return mask
 def prepare_mask(noise_mask, shape, device,video_inpainting=False):
     return reshape_mask(noise_mask, shape,video_inpainting).to(device)
