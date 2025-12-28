@@ -66,7 +66,7 @@ Check our latest [Wan 2.2 Video Examples](#video-examples-beta), [Wan 2.2 Image 
   - [Hunyuan T2I](#example-hunyuan-t2i-inpaintlanpaint-k-sampler-5-steps-of-thinking)
   - [Wan 2.2 T2I](#example-wan22-inpaintlanpaint-k-sampler-5-steps-of-thinking)
   - [Wan 2.2 T2I with reference](#example-wan22-partial-inpaintlanpaint-k-sampler-5-steps-of-thinking)
-  - [Qwen Image Edit 2509](#example-qwen-edit-2509-inpaint)
+  - [Qwen Image Edit 2511 2509](#example-qwen-edit-2509-inpaint)
   - [Qwen Image Edit 2508](#example-qwen-edit-2508-inpaint)
   - [Qwen Image](#example-qwen-image-inpaintlanpaint-k-sampler-5-steps-of-thinking)
   - [HiDream](#example-hidream-inpaint-lanpaint-k-sampler-5-steps-of-thinking)
@@ -279,7 +279,7 @@ You need to follow the ComfyUI version of [Wan2.2 T2V workflow](https://docs.com
 
 
 ### Example Qwen Edit 2509: InPaint
-Check our latest updated [Mased Qwen Edit Workflow](https://github.com/scraed/LanPaint/tree/master/examples/Example_14) for Qwen Image Edit 2509. Download the model at [Qwen Image Edit 2509 Comfy](https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI/tree/main/split_files/diffusion_models).
+Check our latest updated [Mased Qwen Edit Workflow](https://github.com/scraed/LanPaint/tree/master/examples/Example_14) for Qwen Image Edit 2509. Download the model at [Qwen Image Edit 2509 Comfy](https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI/tree/main/split_files/diffusion_models). This workflow also supports Qwen Image Edit 2511.
 
 ![Qwen Result 3](https://github.com/scraed/LanPaint/blob/master/examples/LanPaintQwen_04.jpg) 
 
