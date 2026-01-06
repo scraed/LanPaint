@@ -75,6 +75,7 @@ Check our latest [Wan 2.2 Video Examples](#video-examples-beta), [Wan 2.2 Image 
   - [Qwen Image](#example-qwen-image-inpaintlanpaint-k-sampler-5-steps-of-thinking)
   - [HiDream](#example-hidream-inpaint-lanpaint-k-sampler-5-steps-of-thinking)
   - [SD 3.5](#example-sd-35-inpaintlanpaint-k-sampler-5-steps-of-thinking)
+  - [Flux.2.Dev](#example-flux2dev-inpaintlanpaint-k-sampler-5-steps-of-thinking)
   - [Flux](#example-flux-inpaintlanpaint-k-sampler-5-steps-of-thinking)
   - [SDXL](#example-sdxl-0-character-consistency-side-view-generation-lanpaint-k-sampler-5-steps-of-thinking)
 - [Usage](#usage)
@@ -89,7 +90,7 @@ Check our latest [Wan 2.2 Video Examples](#video-examples-beta), [Wan 2.2 Image 
 
 ## Features
 
-- **Universal Compatibility** – Works instantly with almost any model (**SD 1.5, XL, 3.5, Flux, HiDream, Qwen-Image, Wan2.2 or custom LoRAs**) and ControlNet.  
+- **Universal Compatibility** – Works instantly with almost any model (**Z-image, Hunyuan, Wan 2.2, Qwen Image/Edit, HiDream, SD 3.5, Flux-series, SDXL, SD 1.5 or custom LoRAs**) and ControlNet.  
 ![Inpainting Result 13](https://github.com/scraed/LanPaint/blob/master/examples/InpaintChara_13.jpg) 
 - **No Training Needed** – Works out of the box with your existing model.  
 - **Easy to Use** – Same workflow as standard ComfyUI KSampler.  
@@ -323,6 +324,23 @@ You need to follow the ComfyUI version of [HiDream workflow](https://docs.comfy.
 [View Workflow & Masks](https://github.com/scraed/LanPaint/tree/master/examples/Example_9)
 
 You need to follow the ComfyUI version of [SD 3.5 workflow](https://comfyui-wiki.com/en/tutorial/advanced/stable-diffusion-3-5-comfyui-workflow) to download and install the model.
+
+### Example Flux.2 Dev: InPaint(LanPaint K Sampler, 5 steps of thinking)
+
+<details open>
+<summary>View Original / Masked / Inpainted Comparison</summary>
+
+| Original | Masked | Inpainted |
+|:--------:|:------:|:---------:|
+| ![Original Flux.2.Dev](https://github.com/scraed/LanPaint/blob/master/examples/Example_23/Original_No_Mask.png) | ![Masked Flux.2.Dev](https://github.com/scraed/LanPaint/blob/master/examples/Example_23/Masked_Load_Me_in_Loader.png) | ![Inpainted Flux.2.Dev](https://github.com/scraed/LanPaint/blob/master/examples/Example_23/InPainted_Drag_Me_to_ComfyUI.png) |
+
+</details>
+
+[View Workflow & Masks](https://github.com/scraed/LanPaint/tree/master/examples/Example_23)
+
+[Model Used in This Example](https://huggingface.co/Comfy-Org/flux2-dev)
+
+(Note: Prompt First mode is disabled on Flux.2.Dev. As it does not use CFG guidance.)
 
 ### Example Flux: InPaint(LanPaint K Sampler, 5 steps of thinking)
 ![Inpainting Result 7](https://github.com/scraed/LanPaint/blob/master/examples/InpaintChara_10.jpg)  
