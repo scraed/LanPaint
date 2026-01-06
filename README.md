@@ -30,6 +30,7 @@ note={}
 }
 ```
 **NEW: Join our discord!**
+
 [Join our Discord](https://discord.gg/aCGZutBV) to share experiences, discuss features, and explore future development.
 
 **🎬 NEW: LanPaint now supports inpainting and outpainting based on Z-Image!**
