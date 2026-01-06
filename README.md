@@ -7,6 +7,7 @@
 [![Hugging Face](https://img.shields.io/badge/Hugging%20Face-yellow?logo=huggingface&logoColor=white)](https://huggingface.co/charrywhite/LanPaint)
 [![Blog](https://img.shields.io/badge/📝-Blog-9cf)](https://scraed.github.io/scraedBlog/)
 [![GitHub stars](https://img.shields.io/github/stars/scraed/LanPaint)](https://github.com/scraed/LanPaint/stargazers)
+[![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/aCGZutBV)
 </div>
 
 
@@ -28,6 +29,8 @@ url={https://openreview.net/forum?id=JPC8JyOUSW},
 note={}
 }
 ```
+**NEW: Join our discord!**
+[Join our Discord](https://discord.gg/aCGZutBV) to share experiences, discuss features, and explore future development.
 
 **🎬 NEW: LanPaint now supports inpainting and outpainting based on Z-Image!**
 
