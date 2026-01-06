@@ -325,7 +325,7 @@ You need to follow the ComfyUI version of [HiDream workflow](https://docs.comfy.
 
 You need to follow the ComfyUI version of [SD 3.5 workflow](https://comfyui-wiki.com/en/tutorial/advanced/stable-diffusion-3-5-comfyui-workflow) to download and install the model.
 
-### Example Flux.2 Dev: InPaint(LanPaint K Sampler, 5 steps of thinking)
+### Example Flux.2.Dev: InPaint(LanPaint K Sampler, 5 steps of thinking)
 
 <details open>
 <summary>View Original / Masked / Inpainted Comparison</summary>
