@@ -29,7 +29,7 @@ url={https://openreview.net/forum?id=JPC8JyOUSW},
 note={}
 }
 ```
-**NEW: Join our discord!**
+**🎉 NEW 2026: Join our discord!**
 
 [Join our Discord](https://discord.gg/aCGZutBV) to share experiences, discuss features, and explore future development.
 
