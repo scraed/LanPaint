@@ -2,7 +2,7 @@
   "id": "7c048efb-a059-44e2-970a-43e1eb472d0d",
   "revision": 0,
   "last_node_id": 93,
-  "last_link_id": 205,
+  "last_link_id": 206,
   "nodes": [
     {
       "id": 66,
@@ -35,49 +35,6 @@
       ],
       "color": "#432",
       "bgcolor": "#000"
-    },
-    {
-      "id": 9,
-      "type": "SaveImage",
-      "pos": [
-        1635.7249535135647,
-        -87.27181736086374
-      ],
-      "size": [
-        470,
-        470
-      ],
-      "flags": {},
-      "order": 23,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "images",
-          "type": "IMAGE",
-          "link": 183
-        }
-      ],
-      "outputs": [],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.71",
-        "Node name for S&R": "SaveImage",
-        "enableTabs": false,
-        "tabWidth": 65,
-        "tabXOffset": 10,
-        "hasSecondTab": false,
-        "secondTabText": "Send Back",
-        "secondTabOffset": 80,
-        "secondTabWidth": 65,
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.1",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        "Flux2"
-      ]
     },
     {
       "id": 77,
@@ -298,7 +255,7 @@
         }
       },
       "widgets_values": [
-        63599691201155,
+        595712485756865,
         "randomize"
       ]
     },
@@ -903,60 +860,6 @@
       "widgets_values": []
     },
     {
-      "id": 93,
-      "type": "LanPaint_MaskBlend",
-      "pos": [
-        1654.9181296085296,
-        -278.02632344126863
-      ],
-      "size": [
-        270,
-        98
-      ],
-      "flags": {},
-      "order": 24,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "image1",
-          "type": "IMAGE",
-          "link": 204
-        },
-        {
-          "name": "image2",
-          "type": "IMAGE",
-          "link": 203
-        },
-        {
-          "name": "mask",
-          "type": "MASK",
-          "link": 202
-        }
-      ],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "LanPaint",
-        "ver": "7b0d144db9aca6a4601e7c179b4c8103036e6e2b",
-        "Node name for S&R": "LanPaint_MaskBlend",
-        "ue_properties": {
-          "widget_ue_connectable": {
-            "blend_overlap": true
-          },
-          "version": "7.1",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        1
-      ]
-    },
-    {
       "id": 75,
       "type": "ImageToMask",
       "pos": [
@@ -1000,62 +903,6 @@
       "widgets_values": [
         "red"
       ]
-    },
-    {
-      "id": 87,
-      "type": "VAEDecode",
-      "pos": [
-        1023.8821392889464,
-        282.1259913701435
-      ],
-      "size": [
-        210,
-        46
-      ],
-      "flags": {},
-      "order": 22,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "samples",
-          "type": "LATENT",
-          "link": 196
-        },
-        {
-          "name": "vae",
-          "type": "VAE",
-          "link": 179
-        }
-      ],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "slot_index": 0,
-          "links": [
-            183,
-            203
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.71",
-        "Node name for S&R": "VAEDecode",
-        "enableTabs": false,
-        "tabWidth": 65,
-        "tabXOffset": 10,
-        "hasSecondTab": false,
-        "secondTabText": "Send Back",
-        "secondTabOffset": 80,
-        "secondTabWidth": 65,
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.1",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": []
     },
     {
       "id": 46,
@@ -1281,12 +1128,12 @@
       "id": 88,
       "type": "LanPaint_SamplerCustomAdvanced",
       "pos": [
-        1003.1551974882774,
-        -347.85536869388665
+        1001.9202375599866,
+        -344.1504889090143
       ],
       "size": [
         400,
-        544
+        568
       ],
       "flags": {},
       "order": 21,
@@ -1350,7 +1197,162 @@
         15,
         "Image First",
         1,
-        "LanPaint Custom Sampler Adv. For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star ⭐️!"
+        "LanPaint Custom Sampler Adv. For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star ⭐️!",
+        "🖼️ Image Inpainting"
+      ]
+    },
+    {
+      "id": 87,
+      "type": "VAEDecode",
+      "pos": [
+        1486.9921123979855,
+        399.4471845577673
+      ],
+      "size": [
+        210,
+        46
+      ],
+      "flags": {},
+      "order": 22,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 196
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 179
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "slot_index": 0,
+          "links": [
+            203
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.71",
+        "Node name for S&R": "VAEDecode",
+        "enableTabs": false,
+        "tabWidth": 65,
+        "tabXOffset": 10,
+        "hasSecondTab": false,
+        "secondTabText": "Send Back",
+        "secondTabOffset": 80,
+        "secondTabWidth": 65,
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.1",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 93,
+      "type": "LanPaint_MaskBlend",
+      "pos": [
+        1734.6291795254792,
+        -302.6132529226944
+      ],
+      "size": [
+        270,
+        98
+      ],
+      "flags": {},
+      "order": 23,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image1",
+          "type": "IMAGE",
+          "link": 204
+        },
+        {
+          "name": "image2",
+          "type": "IMAGE",
+          "link": 203
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 202
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            206
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "LanPaint",
+        "ver": "7b0d144db9aca6a4601e7c179b4c8103036e6e2b",
+        "Node name for S&R": "LanPaint_MaskBlend",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "blend_overlap": true
+          },
+          "version": "7.1",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        9
+      ]
+    },
+    {
+      "id": 9,
+      "type": "SaveImage",
+      "pos": [
+        2146.7738256571624,
+        -100.1827620657212
+      ],
+      "size": [
+        470,
+        470
+      ],
+      "flags": {},
+      "order": 24,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 206
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.71",
+        "Node name for S&R": "SaveImage",
+        "enableTabs": false,
+        "tabWidth": 65,
+        "tabXOffset": 10,
+        "hasSecondTab": false,
+        "secondTabText": "Send Back",
+        "secondTabOffset": 80,
+        "secondTabWidth": 65,
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.1",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "Flux2"
       ]
     }
   ],
@@ -1432,14 +1434,6 @@
       45,
       0,
       91,
-      0,
-      "IMAGE"
-    ],
-    [
-      183,
-      87,
-      0,
-      9,
       0,
       "IMAGE"
     ],
@@ -1610,6 +1604,14 @@
       88,
       4,
       "LATENT"
+    ],
+    [
+      206,
+      93,
+      0,
+      9,
+      0,
+      "IMAGE"
     ]
   ],
   "groups": [
@@ -1678,10 +1680,10 @@
     "ue_links": [],
     "links_added_by_ue": [],
     "ds": {
-      "scale": 0.4570787416843792,
+      "scale": 0.8907171599668343,
       "offset": [
-        965.0357661743881,
-        887.1964419204621
+        -765.5730926030146,
+        553.7516793493223
       ]
     }
   },
