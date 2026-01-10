@@ -22,6 +22,17 @@ def reshape_mask(input_mask, output_shape,video_inpainting=False):
     print('target output_shape',output_shape)
     print('input_mask.ndim:', input_mask.ndim, 'output_shape len:', len(output_shape))
     
+    # Handle input mask dimensions
+    if input_mask.ndim == 2:
+        input_mask = input_mask.unsqueeze(0).unsqueeze(0)
+    elif input_mask.ndim == 3:
+        input_mask = input_mask.unsqueeze(1)
+
+    # Handle 5D output shape (B, C, F, H, W) by ensuring input is 5D
+    if len(output_shape) == 5 and input_mask.ndim == 4:
+        if comfyui_version.__version__ >= "0.6.0":
+            input_mask = input_mask.unsqueeze(2)  # (B, C, 1, H, W)
+
     # Handle video case with temporal dimension
     if video_inpainting:  # Video case: (batch, channels, frames, height, width)
         target_frames = output_shape[2]
