@@ -227,7 +227,10 @@ class KSAMPLER(comfy.samplers.KSAMPLER):
                                        model_wrap.model_patcher.LanPaint_Beta,
                                        model_wrap.model_patcher.LanPaint_StepSize, 
                                        IS_FLUX = IS_FLUX, 
-                                       IS_FLOW = IS_FLOW)
+                                       IS_FLOW = IS_FLOW,
+                                       EarlyStopThreshold = getattr(model_wrap.model_patcher, "LanPaint_InnerThreshold", 0.0),
+                                       EarlyStopPatience = getattr(model_wrap.model_patcher, "LanPaint_InnerPatience", 1),
+                                       EarlyStopHook = extra_args.get("model_options", {}).get("lanpaint_semantic_hook", None))
         model_k.LanPaint_early_stop = model_wrap.model_patcher.LanPaint_EarlyStop
         #if not inpainting, after noise_scaling, noise = noise * sigma, which is the noise added to the clean latent image in the variance exploding diffusion model notation.
         #if inpainting, after noise_scaling, noise = latent_image + noise * sigma, which is x_t in the variance exploding diffusion model notation for the known region.
@@ -329,6 +332,8 @@ class LanPaint_KSampler():
         model.LanPaint_NumSteps = LanPaint_NumSteps
         model.LanPaint_Friction = 15.
         model.LanPaint_EarlyStop = 1
+        model.LanPaint_InnerThreshold = 0.0
+        model.LanPaint_InnerPatience = 1
         if LanPaint_PromptMode == "Image First":
             model.LanPaint_cfg_BIG = cfg
         else:
@@ -366,6 +371,8 @@ class LanPaint_KSamplerAdvanced:
                 "LanPaint_Friction": ("FLOAT", {"default": 15, "min": 0., "max": 50.0, "step": 0.1, "round": 0.1, "tooltip": "The friction parameter for fast langevin, lower values result in faster convergence but may be unstable."}),
                 "LanPaint_PromptMode": (["Image First", "Prompt First"], {"tooltip": "Image First: emphasis image quality, Prompt First: emphasis prompt following"}),
                 "LanPaint_EarlyStop": ("INT", {"default": 1, "min": 0, "max": 10000, "tooltip": "The number of steps to stop the LanPaint early, useful for preventing the image from irregular patterns."}),
+                "LanPaint_InnerThreshold": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.0001, "round": 0.0001, "tooltip": "Early stop threshold for Langevin iterations based on semantic distance. 0.0 to disable."}),
+                "LanPaint_InnerPatience": ("INT", {"default": 1, "min": 1, "max": 100, "tooltip": "Number of consecutive steps below threshold required to stop."}),
                 "LanPaint_Info": ("STRING", {"default": "LanPaint KSampler Adv. For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star ⭐️!", "multiline": True}),
                 "Inpainting_mode": (["🖼️ Image Inpainting", "🎬 Video Inpainting"], {"default": "🖼️ Image Inpainting", "tooltip": "Choose Image mode for photos or Video mode for video frames with temporal consistency"}),
                      },
@@ -376,7 +383,7 @@ class LanPaint_KSamplerAdvanced:
 
     CATEGORY = "sampling"
 
-    def sample(self, model, add_noise, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, start_at_step, end_at_step, return_with_leftover_noise, LanPaint_NumSteps=5, LanPaint_Lambda=16.0, LanPaint_StepSize=0.2, LanPaint_Beta=1.0, LanPaint_Friction=15.0, LanPaint_PromptMode="Image First", LanPaint_EarlyStop=1, LanPaint_Info="", Inpainting_mode="🖼️ Image Inpainting"):
+    def sample(self, model, add_noise, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, start_at_step, end_at_step, return_with_leftover_noise, LanPaint_NumSteps=5, LanPaint_Lambda=16.0, LanPaint_StepSize=0.2, LanPaint_Beta=1.0, LanPaint_Friction=15.0, LanPaint_PromptMode="Image First", LanPaint_EarlyStop=1, LanPaint_InnerThreshold=0.0, LanPaint_InnerPatience=1, LanPaint_Info="", Inpainting_mode="🖼️ Image Inpainting"):
         force_full_denoise = True
         if return_with_leftover_noise == "enable":
             force_full_denoise = False
@@ -389,6 +396,8 @@ class LanPaint_KSamplerAdvanced:
         model.LanPaint_NumSteps = LanPaint_NumSteps
         model.LanPaint_Friction = LanPaint_Friction
         model.LanPaint_EarlyStop = LanPaint_EarlyStop
+        model.LanPaint_InnerThreshold = LanPaint_InnerThreshold
+        model.LanPaint_InnerPatience = LanPaint_InnerPatience
         if LanPaint_PromptMode == "Image First":
             model.LanPaint_cfg_BIG = cfg
         else:
@@ -510,6 +519,8 @@ class LanPaint_SamplerCustom:
         model.LanPaint_NumSteps = LanPaint_NumSteps
         model.LanPaint_Friction = 15.
         model.LanPaint_EarlyStop = 1
+        model.LanPaint_InnerThreshold = 0.0
+        model.LanPaint_InnerPatience = 1
         if LanPaint_PromptMode == "Image First":
             model.LanPaint_cfg_BIG = cfg
         else:
@@ -560,6 +571,8 @@ class LanPaint_SamplerCustomAdvanced:
                      "LanPaint_Friction": ("FLOAT", {"default": 15.0, "min": 0.0, "max": 50.0, "step": 0.1, "tooltip": "Friction parameter for fast Langevin. Lower values speed convergence but may be unstable."}),
                      "LanPaint_PromptMode": (["Image First", "Prompt First"], {"tooltip": "Image First: prioritizes image quality; Prompt First: prioritizes prompt adherence."}),
                      "LanPaint_EarlyStop": ("INT", {"default": 1, "min": 0, "max": 10000, "tooltip": "Steps to stop LanPaint early, preventing irregular patterns."}),
+                     "LanPaint_InnerThreshold": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.0001, "round": 0.0001, "tooltip": "Early stop threshold for Langevin iterations based on semantic distance. 0.0 to disable."}),
+                     "LanPaint_InnerPatience": ("INT", {"default": 1, "min": 1, "max": 100, "tooltip": "Number of consecutive steps below threshold required to stop."}),
                      "LanPaint_Info": ("STRING", {"default": "LanPaint Custom Sampler Adv. For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star ⭐️!", "multiline": True}),
                     }
                }
@@ -571,7 +584,7 @@ class LanPaint_SamplerCustomAdvanced:
 
     CATEGORY = "sampling/custom_sampling"
 
-    def sample(self, noise, guider, sampler, sigmas, latent_image, LanPaint_NumSteps, LanPaint_Lambda, LanPaint_StepSize, LanPaint_Beta, LanPaint_Friction, LanPaint_PromptMode, LanPaint_EarlyStop, LanPaint_Info=""):
+    def sample(self, noise, guider, sampler, sigmas, latent_image, LanPaint_NumSteps, LanPaint_Lambda, LanPaint_StepSize, LanPaint_Beta, LanPaint_Friction, LanPaint_PromptMode, LanPaint_EarlyStop, LanPaint_InnerThreshold, LanPaint_InnerPatience, LanPaint_Info=""):
         model = guider.model_patcher
         model.LanPaint_StepSize = LanPaint_StepSize
         model.LanPaint_Lambda = LanPaint_Lambda
@@ -579,6 +592,8 @@ class LanPaint_SamplerCustomAdvanced:
         model.LanPaint_NumSteps = LanPaint_NumSteps
         model.LanPaint_Friction = LanPaint_Friction
         model.LanPaint_EarlyStop = LanPaint_EarlyStop
+        model.LanPaint_InnerThreshold = LanPaint_InnerThreshold
+        model.LanPaint_InnerPatience = LanPaint_InnerPatience
         if LanPaint_PromptMode == "Image First":
             model.LanPaint_cfg_BIG = guider.cfg
         else:

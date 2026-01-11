@@ -3,7 +3,7 @@ from .utils import StochasticHarmonicOscillator
 from functools import partial
 
 class LanPaint():
-    def __init__(self, Model, NSteps, Friction, Lambda, Beta, StepSize, IS_FLUX = False, IS_FLOW = False):
+    def __init__(self, Model, NSteps, Friction, Lambda, Beta, StepSize, IS_FLUX = False, IS_FLOW = False, EarlyStopThreshold = 0.0, EarlyStopPatience = 1, EarlyStopHook = None):
         self.n_steps = NSteps
         self.chara_lamb = Lambda
         self.IS_FLUX = IS_FLUX
@@ -13,6 +13,9 @@ class LanPaint():
         self.friction = Friction
         self.chara_beta = Beta
         self.img_dim_size = None
+        self.early_stop_threshold = EarlyStopThreshold
+        self.early_stop_patience = EarlyStopPatience
+        self.early_stop_hook = EarlyStopHook
 
     def add_none_dims(self, array):
         # Create a tuple with ':' for the first dimension and 'None' repeated num_nones times
@@ -51,9 +54,63 @@ class LanPaint():
         ############ LanPaint Iterations Start ###############
         # after noise_scaling, noise = latent_image + noise * sigma, which is x_t in the variance exploding diffusion model notation for the known region.
         args = None
+        semantic_stop = None
+        if isinstance(model_options, dict):
+            semantic_stop = model_options.get("lanpaint_semantic_stop")
+
+        threshold = float(self.early_stop_threshold)
+        patience = int(self.early_stop_patience)
+        min_steps = 1
+        distance_fn = self.early_stop_hook
+
+        if isinstance(semantic_stop, dict):
+            threshold = float(semantic_stop.get("threshold", threshold))
+            patience = int(semantic_stop.get("patience", patience))
+            min_steps = int(semantic_stop.get("min_steps", min_steps))
+            distance_fn = semantic_stop.get("distance_fn", distance_fn)
+
+        enabled_early_stop = (threshold > 0.0) and (patience > 0)
+        min_steps = max(1, min_steps)
+        patience = max(1, patience)
+        patience_counter = 0
+
         for i in range(n_steps):
             score_func = partial( self.score_model, y = self.latent_image, mask = latent_mask, abt = self.add_none_dims(abt), sigma = self.add_none_dims(VE_Sigma), tflow = self.add_none_dims(Flow_t), model_options = model_options, seed = seed )
+
+            x_t_prev = x_t.detach().clone() if enabled_early_stop else None
+
             x_t, args = self.langevin_dynamics(x_t, score_func , latent_mask, step_size , current_times, sigma_x = self.add_none_dims(self.sigma_x(abt)), sigma_y = self.add_none_dims(self.sigma_y(abt)), args = args)  
+
+            if enabled_early_stop and x_t_prev is not None:
+                ctx = {
+                    "step": i,
+                    "steps_done": i + 1,
+                    "n_steps": n_steps,
+                    "mask": latent_mask,
+                    "latent_image": self.latent_image,
+                    "current_times": current_times,
+                    "seed": seed,
+                }
+
+                dist = None
+                if callable(distance_fn):
+                    try:
+                        dist = distance_fn(x_t_prev, x_t, ctx)
+                    except TypeError:
+                        dist = distance_fn(x_t, x_t_prev)
+
+                if dist is None:
+                    diff = (x_t - x_t_prev) * (1 - latent_mask)
+                    dist = torch.mean(diff**2).item()
+
+                if float(dist) <= threshold:
+                    patience_counter += 1
+                else:
+                    patience_counter = 0
+
+                if (i + 1) >= min_steps and patience_counter >= patience:
+                    break
+
         if IS_FLUX or IS_FLOW:
             x = x_t / ( self.add_none_dims(abt)**0.5 + (1-self.add_none_dims(abt))**0.5 )
         else:
