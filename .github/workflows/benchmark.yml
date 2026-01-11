@@ -1,0 +1,66 @@
+name: LanPaintBench LPIPS (ImageNet subset)
+
+on:
+  pull_request:
+    branches: [ master, main ]
+    paths:
+      - 'src/**'
+      - 'tests/benchmark_lpips.py'
+      - 'tests/compare_benchmarks.py'
+      - '.github/workflows/benchmark.yml'
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    name: Compare Base vs Head
+    runs-on: ubuntu-latest
+    env:
+      HF_HOME: ~/.cache/huggingface
+      BASE_REF: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch }}
+    steps:
+      - name: Checkout Head (Current PR)
+        uses: actions/checkout@v4
+        with:
+          path: head
+          fetch-depth: 1
+
+      - name: Checkout Base (Baseline)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BASE_REF }}
+          path: base
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install lpips datasets numpy pillow
+          # We don't need to install LanPaint as a package because we use sys.path in the script
+
+      - name: Cache HF + torch
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/huggingface
+            ~/.cache/torch
+          key: ${{ runner.os }}-lpips-imagenet-${{ hashFiles('head/tests/benchmark_lpips.py', 'head/tests/compare_benchmarks.py') }}
+
+      - name: Run Baseline Benchmark
+        run: |
+          # Use the benchmark script from the HEAD branch to ensure test consistency
+          python head/tests/benchmark_lpips.py --src base/src --output baseline.json --subset 8 --seed 42 --mask-type box --n-steps 5 --sigma 1.0 --device cpu
+
+      - name: Run Current Benchmark
+        run: |
+          python head/tests/benchmark_lpips.py --src head/src --output current.json --subset 8 --seed 42 --mask-type box --n-steps 5 --sigma 1.0 --device cpu
+
+      - name: Compare Results
+        run: |
+          python head/tests/compare_benchmarks.py --baseline baseline.json --current current.json --max-rel-diff 0.01 --max-abs-diff 0.0
