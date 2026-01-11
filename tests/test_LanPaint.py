@@ -1,21 +1,13 @@
-#!/usr/bin/env python
+"""Basic import tests for LanPaint.
 
-"""Tests for `LanPaint` package."""
+The ComfyUI runtime dependencies (e.g. `comfy`) are intentionally optional for unit tests.
+"""
 
-import pytest
-from src.LanPaint.nodes import Example
 
-@pytest.fixture
-def example_node():
-    """Fixture to create an Example node instance."""
-    return Example()
+def test_package_imports_without_comfy() -> None:
+    import LanPaint
 
-def test_example_node_initialization(example_node):
-    """Test that the node can be instantiated."""
-    assert isinstance(example_node, Example)
-
-def test_return_types():
-    """Test the node's metadata."""
-    assert Example.RETURN_TYPES == ("IMAGE",)
-    assert Example.FUNCTION == "test"
-    assert Example.CATEGORY == "Example"
+    assert isinstance(LanPaint.NODE_CLASS_MAPPINGS, dict)
+    assert isinstance(LanPaint.NODE_DISPLAY_NAME_MAPPINGS, dict)
+    assert "LanPaint_KSampler" in LanPaint.NODE_CLASS_MAPPINGS
+    assert LanPaint.WEB_DIRECTORY == "./web"

@@ -75,5 +75,8 @@ select = [
     # See all rules here: https://docs.astral.sh/ruff/rules/#pyflakes-f
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"src/LanPaint/nodes.py" = ["F403", "F405"]
+
 [tool.ruff.lint.flake8-quotes]
 inline-quotes = "double"

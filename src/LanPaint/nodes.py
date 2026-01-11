@@ -1,15 +1,13 @@
 from contextlib import contextmanager
-from inspect import cleandoc
-import inspect
+import math
 # import nodes.py
 import comfy
 import nodes
 import latent_preview
-from functools import partial
+import torch
 from comfy.utils import repeat_to_batch_size
 from comfy.samplers import *
 from comfy.model_base import ModelType
-from .utils import *
 from .lanpaint import LanPaint
 from comfy.model_base import WAN22
 import comfyui_version 
@@ -21,14 +19,25 @@ def reshape_mask(input_mask, output_shape,video_inpainting=False):
     print('input mask',input_mask.shape,type(input_mask),torch.max(input_mask),torch.min(input_mask))
     print('target output_shape',output_shape)
     print('input_mask.ndim:', input_mask.ndim, 'output_shape len:', len(output_shape))
-    
+
+    # Handle input mask dimensions
+    if input_mask.ndim == 2:
+        input_mask = input_mask.unsqueeze(0).unsqueeze(0)
+    elif input_mask.ndim == 3:
+        input_mask = input_mask.unsqueeze(1)
+
+    # Handle 5D output shape (B, C, F, H, W) by ensuring input is 5D
+    if len(output_shape) == 5 and input_mask.ndim == 4:
+        if comfyui_version.__version__ >= "0.6.0":
+            input_mask = input_mask.unsqueeze(2)  # (B, C, 1, H, W)
+
     # Handle video case with temporal dimension
     if video_inpainting:  # Video case: (batch, channels, frames, height, width)
         target_frames = output_shape[2]
         target_height, target_width = output_shape[-2:]
-        
+
         print('Video case - input_mask initial shape:', input_mask.shape)
-        
+
         # First reshape input_mask to have proper dimensions for video processing
         # Assume input is (frames, channels, height, width) -> (1, channels, frames, height, width)
         ## if comfy version < 0.6.0
@@ -39,14 +48,14 @@ def reshape_mask(input_mask, output_shape,video_inpainting=False):
         batch_size, channels, frames, height, width = input_mask.shape
         print('Video case - dimensions: batch_size={}, channels={}, frames={}, height={}, width={}'.format(batch_size, channels, frames, height, width))
         print('Video case - target size:', (target_frames, target_height, target_width))
-        
+
         # 3D nearest-exact interpolation: (batch, channels, frames, height, width) -> (batch, channels, target_frames, target_height, target_width)
         temp_mask = torch.nn.functional.interpolate(
             input_mask, 
             size=(target_frames, target_height, target_width), 
             mode=scale_mode, 
         )
-        
+
         # temp_mask is already 5D: (batch, channels, target_frames, target_height, target_width)
         mask = temp_mask
         print('after mask',mask.shape)
@@ -63,7 +72,7 @@ def reshape_mask(input_mask, output_shape,video_inpainting=False):
         if mask.shape[1] < output_shape[1]:
             mask = mask.repeat((1, output_shape[1]) + (1,) * dims)[:,:output_shape[1]]
         mask = repeat_to_batch_size(mask, output_shape[0])
-    
+
 
     return mask
 def prepare_mask(noise_mask, shape, device,video_inpainting=False):
@@ -144,7 +153,7 @@ class KSamplerX0Inpaint:
             abt = (1 - Flow_t)**2 / ((1 - Flow_t)**2 + Flow_t**2 )
             VE_Sigma = Flow_t / (1 - Flow_t)
             #print("t", torch.mean( sigma ).item(), "VE_Sigma", torch.mean( VE_Sigma ).item())
-            
+
 
         else:
             VE_Sigma = sigma 
@@ -169,7 +178,7 @@ class KSamplerX0Inpaint:
                 out = self.PaintMethod(x, self.latent_image, self.noise, sigma, latent_mask, current_times, model_options, seed)
         else:
             out, _ = self.inner_model(x, sigma, model_options=model_options, seed=seed)
-        
+
         # Add TAESD preview support - directly use the latent_preview module
         current_step = model_options.get("i", kwargs.get("i", 0))
         total_steps = model_options.get("total_steps", 0)
@@ -180,7 +189,7 @@ class KSamplerX0Inpaint:
             callback = model_options.get("callback", None)
             if callback is not None:
                 callback({"i": current_step, "denoised": out, "x": x})
-    
+
         return out
 
 # Custom sampler class extending ComfyUI's KSAMPLER for LanPaint
@@ -319,13 +328,13 @@ class LanPaint_KSampler():
             model.LanPaint_cfg_BIG = cfg
         else:
             model.LanPaint_cfg_BIG = 0*cfg - 0.5
-        
+
         # Convert inpainting_mode to boolean for video_inpainting
         video_inpainting = (Inpainting_mode == "🎬 Video Inpainting")
         if not hasattr(model, 'model_options') or model.model_options is None:
             model.model_options = {}
         model.model_options["video_inpainting"] = video_inpainting
-        
+
         with override_sample_function():
             return nodes.common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise)
 class LanPaint_KSamplerAdvanced:
@@ -379,7 +388,7 @@ class LanPaint_KSamplerAdvanced:
             model.LanPaint_cfg_BIG = cfg
         else:
             model.LanPaint_cfg_BIG = 0*cfg - 0.5
-        
+
         # Convert inpainting_mode to boolean for video_inpainting
         video_inpainting = (Inpainting_mode == "🎬 Video Inpainting")
         if not hasattr(model, 'model_options') or model.model_options is None:
@@ -431,7 +440,7 @@ class MaskBlend:
         kernel = self.gaussian_kernel(blend_overlap)
         kernel = kernel.to(image1.device)
         kernel = kernel[None, None, ...]
-        
+
         mask = torch.nn.functional.conv2d(mask[:,None,:,:], kernel, padding=blend_overlap//2)[:,0,:,:]
 
 
@@ -529,7 +538,7 @@ class LanPaint_SamplerCustom:
             else:
                 out_denoised = out
             return (out, out_denoised)
-        
+
 class LanPaint_SamplerCustomAdvanced:
     @classmethod
     def INPUT_TYPES(s):
