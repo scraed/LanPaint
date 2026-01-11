@@ -1,5 +1,5 @@
 import torch
-from .utils import *
+from .utils import StochasticHarmonicOscillator
 from functools import partial
 
 class LanPaint():
@@ -34,7 +34,6 @@ class LanPaint():
     def LanPaint(self, x, sigma, latent_mask, current_times, n_steps, model_options, seed, IS_FLUX, IS_FLOW):
         VE_Sigma, abt, Flow_t = current_times
 
-        
         step_size = self.step_size * (1 - abt)
         step_size = self.add_none_dims(step_size)
         # self.inner_model.inner_model.scale_latent_inpaint returns variance exploding x_t values
@@ -43,8 +42,6 @@ class LanPaint():
             return self.inner_model.inner_model.model_sampling.noise_scaling(sigma.reshape([sigma.shape[0]] + [1] * (len(noise.shape) - 1)), noise, latent_image)
 
         x = x * (1 - latent_mask) +  scale_latent_inpaint(x=x, sigma=sigma, noise=self.noise, latent_image=self.latent_image)* latent_mask
-        
-
 
         if IS_FLUX or IS_FLOW:
             x_t = x * ( self.add_none_dims(abt)**0.5 + (1-self.add_none_dims(abt))**0.5 )
@@ -68,7 +65,6 @@ class LanPaint():
         return out
 
     def score_model(self, x_t, y, mask, abt, sigma, tflow, model_options, seed):
-        
         lamb = self.chara_lamb
         if self.IS_FLUX or self.IS_FLOW:
             # compute t for flow model, with a small epsilon compensating for numerical error.
@@ -136,7 +132,7 @@ class LanPaint():
             x_t, v = advance_time(x_t, v, dt/2, Gamma, A, C, D)
 
             C = C_new
-  
+
         return x_t, (v, C)
 
     def prepare_step_size(self, current_times, step_size, sigma_x, sigma_y):
@@ -148,7 +144,7 @@ class LanPaint():
         # Compute time step (dtx, dty) for x and y branches.
         dtx = 2 * step_size * sigma_x
         dty = 2 * step_size * sigma_y
-        
+
         # -------------------------------------------------------------------------
         # Define friction parameter Gamma_hat for each branch.
         # Using dtx**0 provides a tensor of the proper device/dtype.
