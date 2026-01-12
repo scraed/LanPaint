@@ -27,6 +27,14 @@ def main() -> None:
 
     b_score = float(baseline["lpips"])
     c_score = float(current["lpips"])
+
+    b_stats = baseline.get("stats") if isinstance(baseline, dict) else None
+    c_stats = current.get("stats") if isinstance(current, dict) else None
+    b_seconds = float(b_stats.get("seconds_total", 0.0)) if isinstance(b_stats, dict) else 0.0
+    c_seconds = float(c_stats.get("seconds_total", 0.0)) if isinstance(c_stats, dict) else 0.0
+    b_spi = float(b_stats.get("seconds_per_image", 0.0)) if isinstance(b_stats, dict) else 0.0
+    c_spi = float(c_stats.get("seconds_per_image", 0.0)) if isinstance(c_stats, dict) else 0.0
+
     diff = c_score - b_score
     rel_diff = diff / b_score if b_score != 0.0 else float("inf")
 
@@ -46,6 +54,8 @@ def main() -> None:
             "| Metric | Baseline | Current | Diff |",
             "|---|---:|---:|---:|",
             f"| LPIPS | {b_score:.6f} | {c_score:.6f} | {diff:+.6f} |",
+            f"| Runtime (s) | {b_seconds:.1f} | {c_seconds:.1f} | {(c_seconds - b_seconds):+.1f} |",
+            f"| Sec/img | {b_spi:.2f} | {c_spi:.2f} | {(c_spi - b_spi):+.2f} |",
             "",
         ]
     )

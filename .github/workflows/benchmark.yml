@@ -1,22 +1,20 @@
 name: LanPaintBench LPIPS (ImageNet subset)
 
 on:
-  pull_request:
-    branches: [ master, main ]
-    paths:
-      - 'src/**'
-      - 'tests/benchmark_lpips.py'
-      - 'tests/compare_benchmarks.py'
-      - '.github/workflows/benchmark.yml'
   workflow_dispatch:
 
 jobs:
   benchmark:
     name: Compare Base vs Head
     runs-on: ubuntu-latest
+    timeout-minutes: 360
     env:
       HF_HOME: ~/.cache/huggingface
       BASE_REF: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch }}
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      LANPAINTBENCH_REF: "ea5be5d"
+      CHECKPOINT_URL: "https://openaipublic.blob.core.windows.net/diffusion/jul-2021/256x256_diffusion_uncond.pt"
     steps:
       - name: Checkout Head (Current PR)
         uses: actions/checkout@v4
@@ -41,25 +39,73 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-          pip install lpips datasets numpy pillow
+          pip install lpips datasets numpy pillow blobfile
           # We don't need to install LanPaint as a package because we use sys.path in the script
 
-      - name: Cache HF + torch
+      - name: Cache HF + torch + checkpoints
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/huggingface
             ~/.cache/torch
+            ~/.cache/lanpaintbench
           key: ${{ runner.os }}-lpips-imagenet-${{ hashFiles('head/tests/benchmark_lpips.py', 'head/tests/compare_benchmarks.py') }}
+
+      - name: Clone LanPaintBench
+        run: |
+          git clone https://github.com/scraed/LanPaintBench.git bench
+          cd bench
+          git checkout "$LANPAINTBENCH_REF"
+
+      - name: Download ImageNet-256 checkpoint
+        run: |
+          CHECKPOINT_PATH="$HOME/.cache/lanpaintbench/checkpoints/256x256_diffusion_uncond.pt"
+          mkdir -p ~/.cache/lanpaintbench/checkpoints
+          if [ ! -f "$CHECKPOINT_PATH" ]; then
+            curl -L "$CHECKPOINT_URL" -o "$CHECKPOINT_PATH"
+          fi
+          ls -lh "$CHECKPOINT_PATH"
 
       - name: Run Baseline Benchmark
         run: |
+          CHECKPOINT_PATH="$HOME/.cache/lanpaintbench/checkpoints/256x256_diffusion_uncond.pt"
           # Use the benchmark script from the HEAD branch to ensure test consistency
-          python head/tests/benchmark_lpips.py --src base/src --output baseline.json --subset 8 --seed 42 --mask-type box --n-steps 5 --sigma 1.0 --device cpu
+          python head/tests/benchmark_lpips.py \
+            --mode guided_diffusion_e2e \
+            --src base/src \
+            --lanpaintbench bench \
+            --checkpoint "$CHECKPOINT_PATH" \
+            --output baseline.json \
+            --dataset benjamin-paine/imagenet-1k-256x256 \
+            --split train \
+            --subset 50 \
+            --seed 42 \
+            --shuffle-buffer 1024 \
+            --mask-type box \
+            --n-steps 5 \
+            --sample-steps 20 \
+            --device cpu \
+            --min-seconds 3600
 
       - name: Run Current Benchmark
         run: |
-          python head/tests/benchmark_lpips.py --src head/src --output current.json --subset 8 --seed 42 --mask-type box --n-steps 5 --sigma 1.0 --device cpu
+          CHECKPOINT_PATH="$HOME/.cache/lanpaintbench/checkpoints/256x256_diffusion_uncond.pt"
+          python head/tests/benchmark_lpips.py \
+            --mode guided_diffusion_e2e \
+            --src head/src \
+            --lanpaintbench bench \
+            --checkpoint "$CHECKPOINT_PATH" \
+            --output current.json \
+            --dataset benjamin-paine/imagenet-1k-256x256 \
+            --split train \
+            --subset 50 \
+            --seed 42 \
+            --shuffle-buffer 1024 \
+            --mask-type box \
+            --n-steps 5 \
+            --sample-steps 20 \
+            --device cpu \
+            --min-seconds 3600
 
       - name: Compare Results
         run: |
