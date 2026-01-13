@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "LanPaint"
-version = "1.4.9"
+version = "1.4.10"
 description = "Achieve seamless inpainting results without needing a specialized inpainting model."
 authors = [
   {name = "LanPaint", email = "czhengac@connect.ust.hk"}
