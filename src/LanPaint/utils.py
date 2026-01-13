@@ -264,12 +264,6 @@ class StochasticHarmonicOscillator:
         cov_yv = (zeta2(Gamma_hat, Delta) * Gamma_hat * D ) **2 / 2 / (Gamma ** 0.5)
 
         # sample new position and velocity with multivariate normal distribution
-        tol = 1e-8
-        y_mean = torch.where(torch.isfinite(y_mean), y_mean, y0)
-        v_mean = torch.where(torch.isfinite(v_mean), v_mean, v0)
-        cov_yy = torch.where(torch.isfinite(cov_yy), cov_yy, torch.full_like(cov_yy, tol))
-        cov_vv = torch.where(torch.isfinite(cov_vv), cov_vv, torch.full_like(cov_vv, tol))
-        cov_yv = torch.where(torch.isfinite(cov_yv), cov_yv, torch.zeros_like(cov_yv))
 
         batch_shape = y0.shape
         cov_matrix = torch.zeros(*batch_shape, 2, 2, device=y0.device, dtype=y0.dtype)
@@ -283,6 +277,7 @@ class StochasticHarmonicOscillator:
         # Compute the Cholesky decomposition to get scale_tril
         #scale_tril = torch.linalg.cholesky(cov_matrix)
         scale_tril = torch.zeros(*batch_shape, 2, 2, device=y0.device, dtype=y0.dtype)
+        tol = 1e-8
         cov_yy = torch.clamp( cov_yy, min = tol )
         sd_yy = torch.sqrt( cov_yy )
         inv_sd_yy = 1/(sd_yy)
@@ -291,9 +286,6 @@ class StochasticHarmonicOscillator:
         scale_tril[..., 0, 1] = 0.
         scale_tril[..., 1, 0] = cov_yv * inv_sd_yy
         scale_tril[..., 1, 1] = torch.clamp( cov_vv - cov_yv**2 / cov_yy, min = tol ) ** 0.5
-        scale_tril = torch.where(torch.isfinite(scale_tril), scale_tril, torch.zeros_like(scale_tril))
-        scale_tril[..., 0, 0] = torch.clamp(scale_tril[..., 0, 0], min=tol)
-        scale_tril[..., 1, 1] = torch.clamp(scale_tril[..., 1, 1], min=tol)
         # check if it matches torch.linalg.
         #assert torch.allclose(torch.linalg.cholesky(cov_matrix), scale_tril, atol = 1e-4, rtol = 1e-4 )
         # Sample correlated noise from multivariate normal
