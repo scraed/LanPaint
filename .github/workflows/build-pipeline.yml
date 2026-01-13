@@ -26,6 +26,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install .[dev]
+          pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
       - name: Run Linting
         run: |
           ruff check .
