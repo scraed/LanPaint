@@ -14,9 +14,9 @@ def test_langevin_dynamics_fallback_on_nan() -> None:
     # Simple score function
     def score(x):
         return torch.zeros_like(x)
-    step_size = torch.tensor(0.1)
+    step_size = torch.tensor([0.1])
     # (sigma, abt, flow_t)
-    current_times = (torch.tensor(0.5), torch.tensor(0.5), torch.tensor(0.5))
+    current_times = (torch.tensor([0.5]), torch.tensor([0.5]), torch.tensor([0.5]))
     # Mock StochasticHarmonicOscillator to return NaNs
     # We patch it where it is used (imported) in lanpaint.py
     with patch("src.LanPaint.lanpaint.StochasticHarmonicOscillator") as MockSHO:
@@ -26,7 +26,7 @@ def test_langevin_dynamics_fallback_on_nan() -> None:
         mock_instance.dynamics.return_value = (nan_tensor, nan_tensor)
         # Execute langevin_dynamics
         # This should try run_damped -> get NaNs -> raise ValueError -> catch -> run_overdamped
-        x_out, (v_out, C_out) = lp.langevin_dynamics(x_t, score, mask, step_size, current_times)
+        x_out, (v_out, C_out) = lp.langevin_dynamics(x_t, score, mask, step_size, current_times, sigma_y=1.0)
         # Verify that SHO was initialized and dynamics called
         MockSHO.assert_called()
         mock_instance.dynamics.assert_called()
@@ -41,11 +41,11 @@ def test_langevin_dynamics_fallback_on_exception() -> None:
     lp.img_dim_size = 4
     mask = torch.zeros_like(x_t)
     score = lambda x: torch.zeros_like(x)
-    step_size = torch.tensor(0.1)
-    current_times = (torch.tensor(0.5), torch.tensor(0.5), torch.tensor(0.5))
+    step_size = torch.tensor([0.1])
+    current_times = (torch.tensor([0.5]), torch.tensor([0.5]), torch.tensor([0.5]))
     with patch("src.LanPaint.lanpaint.StochasticHarmonicOscillator") as MockSHO:
         mock_instance = MockSHO.return_value
         # Configure dynamics to raise Exception
         mock_instance.dynamics.side_effect = RuntimeError("Simulation exploded")
-        x_out, (v_out, C_out) = lp.langevin_dynamics(x_t, score, mask, step_size, current_times)
+        x_out, (v_out, C_out) = lp.langevin_dynamics(x_t, score, mask, step_size, current_times, sigma_y=1.0)
         assert torch.isfinite(x_out).all()
