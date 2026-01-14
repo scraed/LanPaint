@@ -10,7 +10,7 @@ on:
       subset:
         description: "Number of ImageNet images to benchmark"
         required: true
-        default: "10"
+        default: "1"
       sample_steps:
         description: "Outer diffusion steps (guided_diffusion_e2e)"
         required: true
@@ -43,6 +43,22 @@ on:
         description: "Fail if a benchmark runtime is below this (0 to disable)"
         required: true
         default: "0"
+      max_case_mean_delta:
+        description: "Fail if mean per-case metric delta exceeds this (head_on - head_off)"
+        required: true
+        default: "0.01"
+      max_case_p95_delta:
+        description: "Fail if P95 per-case metric delta exceeds this (head_on - head_off)"
+        required: true
+        default: "0.02"
+      max_case_max_delta:
+        description: "Fail if max per-case metric delta exceeds this (head_on - head_off)"
+        required: true
+        default: "0.05"
+      gallery_topk:
+        description: "How many worst-case examples to render in the gallery"
+        required: true
+        default: "8"
 
 jobs:
   benchmark:
@@ -90,7 +106,7 @@ jobs:
             ~/.cache/huggingface
             ~/.cache/torch
             ~/.cache/lanpaintbench
-          key: ${{ runner.os }}-lpips-imagenet-${{ hashFiles('head/tests/benchmark_lpips.py', 'head/tests/compare_benchmarks.py') }}
+          key: ${{ runner.os }}-lpips-imagenet-${{ hashFiles('head/tests/benchmark_lpips.py', 'head/tests/compare_benchmarks.py', 'head/tests/render_benchmark_gallery.py') }}
 
       - name: Clone LanPaintBench
         run: |
@@ -122,6 +138,7 @@ jobs:
             --subset "${{ inputs.subset }}" \
             --seed "${{ inputs.seed }}" \
             --shuffle-buffer "${{ inputs.shuffle_buffer }}" \
+            --no-shuffle \
             --mask-type box \
             --n-steps "${{ inputs.n_steps }}" \
             --sample-steps "${{ inputs.sample_steps }}" \
@@ -143,12 +160,14 @@ jobs:
             --subset "${{ inputs.subset }}" \
             --seed "${{ inputs.seed }}" \
             --shuffle-buffer "${{ inputs.shuffle_buffer }}" \
+            --no-shuffle \
             --mask-type box \
             --n-steps "${{ inputs.n_steps }}" \
             --sample-steps "${{ inputs.sample_steps }}" \
             --device cpu \
             --min-seconds "${{ inputs.min_seconds }}" \
-            --semantic-threshold 0.0
+            --semantic-threshold 0.0 \
+            --save-images-dir head_off_images
 
       - name: Run Head Benchmark (early-stop ON)
         run: |
@@ -164,6 +183,7 @@ jobs:
             --subset "${{ inputs.subset }}" \
             --seed "${{ inputs.seed }}" \
             --shuffle-buffer "${{ inputs.shuffle_buffer }}" \
+            --no-shuffle \
             --mask-type box \
             --n-steps "${{ inputs.n_steps }}" \
             --sample-steps "${{ inputs.sample_steps }}" \
@@ -171,7 +191,8 @@ jobs:
             --min-seconds "${{ inputs.min_seconds }}" \
             --semantic-threshold "${{ inputs.semantic_threshold }}" \
             --semantic-patience "${{ inputs.semantic_patience }}" \
-            --semantic-min-steps "${{ inputs.semantic_min_steps }}"
+            --semantic-min-steps "${{ inputs.semantic_min_steps }}" \
+            --save-images-dir head_on_images
 
       - name: Compare baseline vs head_off
         continue-on-error: true
@@ -179,21 +200,44 @@ jobs:
           python head/tests/compare_benchmarks.py --baseline baseline.json --current head_off.json --max-rel-diff 0.01 --max-abs-diff 0.0
 
       - name: Compare head_off vs head_on
-        continue-on-error: true
         run: |
-          python head/tests/compare_benchmarks.py --baseline head_off.json --current head_on.json --max-rel-diff 0.01 --max-abs-diff 0.0
+          python head/tests/compare_benchmarks.py \
+            --baseline head_off.json \
+            --current head_on.json \
+            --max-rel-diff 0.01 \
+            --max-abs-diff 0.0 \
+            --case-metric lpips_inpaint_ctx \
+            --max-case-mean-delta "${{ inputs.max_case_mean_delta }}" \
+            --max-case-p95-delta "${{ inputs.max_case_p95_delta }}" \
+            --max-case-max-delta "${{ inputs.max_case_max_delta }}"
 
       - name: Compare baseline vs head_on
         continue-on-error: true
         run: |
           python head/tests/compare_benchmarks.py --baseline baseline.json --current head_on.json --max-rel-diff 0.01 --max-abs-diff 0.0
 
+      - name: Render worst-case gallery (head_off vs head_on)
+        if: ${{ always() }}
+        run: |
+          python head/tests/render_benchmark_gallery.py \
+            --baseline-json head_off.json \
+            --current-json head_on.json \
+            --baseline-images head_off_images \
+            --current-images head_on_images \
+            --out-dir gallery \
+            --metric lpips_inpaint_ctx \
+            --top-k "${{ inputs.gallery_topk }}"
+
       - name: Upload benchmark JSON
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: lpips-benchmark-json
+          name: lpips-benchmark-artifacts
           path: |
             baseline.json
             head_off.json
             head_on.json
+            head_off_images
+            head_on_images
+            gallery
+          if-no-files-found: warn

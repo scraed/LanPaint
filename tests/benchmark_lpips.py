@@ -72,14 +72,23 @@ class _DummyModel:
         return x0, x0
 
 
-def _load_images(*, dataset: str, split: str, subset: int, seed: int, shuffle_buffer: int) -> list[torch.Tensor]:
+def _load_images(
+    *,
+    dataset: str,
+    split: str,
+    subset: int,
+    seed: int,
+    shuffle_buffer: int,
+    shuffle: bool,
+) -> list[torch.Tensor]:
     from datasets import load_dataset
 
     ds = load_dataset(dataset, split=split, streaming=True)
-    try:
-        ds = ds.shuffle(seed=seed, buffer_size=shuffle_buffer)
-    except Exception:
-        pass
+    if shuffle:
+        try:
+            ds = ds.shuffle(seed=seed, buffer_size=shuffle_buffer)
+        except Exception:
+            pass
 
     images: list[torch.Tensor] = []
     for idx, item in enumerate(ds):
@@ -148,6 +157,31 @@ def _run_dummy_bench(  # type: ignore[no-untyped-def]
         scores.append(float(dist.item()))
 
     return float(np.mean(scores))
+
+
+def _tensor_to_pil_rgb(image: torch.Tensor):  # type: ignore[no-untyped-def]
+    from PIL import Image
+
+    if image.ndim == 4:
+        image = image[0]
+    if image.ndim != 3 or image.shape[0] != 3:
+        raise ValueError(f"expected (3,H,W) or (1,3,H,W), got {tuple(image.shape)}")
+    image = image.detach().cpu().clamp(-1.0, 1.0)
+    image = (image + 1.0) * 0.5 * 255.0
+    arr = image.permute(1, 2, 0).to(torch.uint8).numpy()
+    return Image.fromarray(arr, mode="RGB")
+
+
+def _tensor_to_pil_mask(mask: torch.Tensor):  # type: ignore[no-untyped-def]
+    from PIL import Image
+
+    if mask.ndim == 4:
+        mask = mask[0]
+    if mask.ndim != 3:
+        raise ValueError(f"expected (C,H,W) or (1,C,H,W), got {tuple(mask.shape)}")
+    mask_2d = mask[0].detach().cpu().clamp(0.0, 1.0)
+    arr = (mask_2d * 255.0).to(torch.uint8).numpy()
+    return Image.fromarray(arr, mode="L")
 
 
 def _ddpm_alpha_bar(*, timesteps: int, beta_start: float, beta_end: float) -> torch.Tensor:
@@ -275,7 +309,8 @@ def _run_guided_diffusion_e2e_bench(  # type: ignore[no-untyped-def]
     beta_end: float,
     train_timesteps: int,
     semantic_stop: dict[str, float | int] | None = None,
-) -> tuple[float, dict[str, float]]:
+    save_images_dir: Path | None = None,
+) -> tuple[float, dict[str, float], list[dict[str, float | int | str]]]:
     import lpips
 
     unet = _load_guided_diffusion_unet(lanpaintbench=lanpaintbench, checkpoint=checkpoint, device=device)
@@ -294,6 +329,7 @@ def _run_guided_diffusion_e2e_bench(  # type: ignore[no-untyped-def]
 
     scores: list[float] = []
     start = time.perf_counter()
+    cases: list[dict[str, float | int | str]] = []
 
     engine = LanPaintClass(
         Model=model,
@@ -304,7 +340,11 @@ def _run_guided_diffusion_e2e_bench(  # type: ignore[no-untyped-def]
         StepSize=0.1,
     )
 
+    if save_images_dir is not None:
+        save_images_dir.mkdir(parents=True, exist_ok=True)
+
     for idx, img in enumerate(images):
+        case_start = time.perf_counter()
         img = img.unsqueeze(0).to(device)
 
         height, width = img.shape[-2:]
@@ -353,12 +393,43 @@ def _run_guided_diffusion_e2e_bench(  # type: ignore[no-untyped-def]
             x = x + d * (sigma_next_ - sigma_)
 
         x = x.clamp(-1.0, 1.0)
-        dist = lpips_fn(x * inpaint_mask, img * inpaint_mask)
-        scores.append(float(dist.item()))
+        reference = img
+
+        # Preserve context by replacing known region with reference in both tensors.
+        x_ctx = x * inpaint_mask + reference * latent_mask
+        ref_ctx = reference
+
+        dist_inpaint_ctx = lpips_fn(x_ctx, ref_ctx)
+        dist_inpaint_zero = lpips_fn(x * inpaint_mask, reference * inpaint_mask)
+        dist_full = lpips_fn(x, reference)
+
+        mse_inpaint = torch.mean(((x - reference) * inpaint_mask) ** 2).item()
+        case_seconds = time.perf_counter() - case_start
+
+        scores.append(float(dist_inpaint_zero.item()))
+        cases.append(
+            {
+                "case_id": idx,
+                "lpips_inpaint_ctx": float(dist_inpaint_ctx.item()),
+                "lpips_inpaint_zero": float(dist_inpaint_zero.item()),
+                "lpips_full": float(dist_full.item()),
+                "mse_inpaint": float(mse_inpaint),
+                "seconds": float(case_seconds),
+            }
+        )
+
+        if save_images_dir is not None:
+            case_dir = save_images_dir / f"{idx:04d}"
+            case_dir.mkdir(parents=True, exist_ok=True)
+            _tensor_to_pil_rgb(reference).save(case_dir / "reference.png")
+            _tensor_to_pil_rgb(latent_image).save(case_dir / "masked_input.png")
+            _tensor_to_pil_rgb(x).save(case_dir / "output.png")
+            _tensor_to_pil_mask(latent_mask).save(case_dir / "known_mask.png")
+            _tensor_to_pil_mask(inpaint_mask).save(case_dir / "inpaint_mask.png")
 
     elapsed = time.perf_counter() - start
     stats = {"seconds_total": elapsed, "seconds_per_image": elapsed / max(1, len(images))}
-    return float(np.mean(scores)), stats
+    return float(np.mean(scores)), stats, cases
 
 
 def main() -> None:
@@ -372,6 +443,7 @@ def main() -> None:
     parser.add_argument("--subset", type=int, default=8)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--shuffle-buffer", type=int, default=1024)
+    parser.add_argument("--no-shuffle", action="store_true", help="Disable streaming shuffle for deterministic case selection")
 
     parser.add_argument("--mask-type", type=str, default="box", choices=["half", "box", "outpaint", "checkerboard"])
     parser.add_argument("--n-steps", type=int, default=5, help="LanPaint inner iterations per call (dummy mode)")
@@ -393,6 +465,7 @@ def main() -> None:
     )
     parser.add_argument("--semantic-patience", type=int, default=1, help="Semantic early-stop patience (guided_diffusion_e2e)")
     parser.add_argument("--semantic-min-steps", type=int, default=1, help="Semantic early-stop min_steps (guided_diffusion_e2e)")
+    parser.add_argument("--save-images-dir", type=Path, default=None, help="If set, save per-case images for manual review")
     args = parser.parse_args()
 
     if args.subset <= 0:
@@ -423,9 +496,11 @@ def main() -> None:
         subset=args.subset,
         seed=args.seed,
         shuffle_buffer=args.shuffle_buffer,
+        shuffle=not args.no_shuffle,
     )
 
     stats: dict[str, float] = {}
+    cases = None
     if args.mode == "dummy":
         score = _run_dummy_bench(
             LanPaintEngine,
@@ -448,7 +523,7 @@ def main() -> None:
                 "min_steps": int(args.semantic_min_steps),
             }
 
-        score, stats = _run_guided_diffusion_e2e_bench(
+        score, stats, cases = _run_guided_diffusion_e2e_bench(
             LanPaintEngine,
             images,
             device,
@@ -462,6 +537,7 @@ def main() -> None:
             beta_end=args.beta_end,
             train_timesteps=args.train_timesteps,
             semantic_stop=semantic_stop,
+            save_images_dir=args.save_images_dir,
         )
         if args.min_seconds > 0.0 and stats.get("seconds_total", 0.0) < args.min_seconds:
             raise SystemExit(f"benchmark too fast: {stats.get('seconds_total', 0.0):.1f}s < {args.min_seconds:.1f}s")
@@ -479,6 +555,7 @@ def main() -> None:
                     "subset": args.subset,
                     "seed": args.seed,
                     "shuffle_buffer": args.shuffle_buffer,
+                    "no_shuffle": bool(args.no_shuffle),
                     "mask_type": args.mask_type,
                     "n_steps": args.n_steps,
                     "sigma": args.sigma,
@@ -493,6 +570,7 @@ def main() -> None:
                     "semantic_patience": args.semantic_patience,
                     "semantic_min_steps": args.semantic_min_steps,
                 },
+                "cases": cases,
             },
             f,
             indent=2,
