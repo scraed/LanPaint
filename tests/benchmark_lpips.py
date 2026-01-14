@@ -274,6 +274,7 @@ def _run_guided_diffusion_e2e_bench(  # type: ignore[no-untyped-def]
     beta_start: float,
     beta_end: float,
     train_timesteps: int,
+    semantic_stop: dict[str, float | int] | None = None,
 ) -> tuple[float, dict[str, float]]:
     import lpips
 
@@ -326,6 +327,10 @@ def _run_guided_diffusion_e2e_bench(  # type: ignore[no-untyped-def]
             flow_t = torch.sqrt(1.0 - abt) / (torch.sqrt(1.0 - abt) + torch.sqrt(abt))
             current_times = (sigma, abt, flow_t)
 
+            model_options = {"bench_timestep": int(t)}
+            if semantic_stop is not None:
+                model_options["lanpaint_semantic_stop"] = semantic_stop
+
             x0 = engine(
                 x=x,
                 latent_image=latent_image,
@@ -333,7 +338,7 @@ def _run_guided_diffusion_e2e_bench(  # type: ignore[no-untyped-def]
                 sigma=sigma,
                 latent_mask=latent_mask,
                 current_times=current_times,
-                model_options={"bench_timestep": int(t)},
+                model_options=model_options,
                 seed=seed,
                 n_steps=inner_steps,
             )
@@ -380,6 +385,14 @@ def main() -> None:
     parser.add_argument("--beta-start", type=float, default=0.0001, help="DDPM beta_start (guided_diffusion_e2e)")
     parser.add_argument("--beta-end", type=float, default=0.02, help="DDPM beta_end (guided_diffusion_e2e)")
     parser.add_argument("--min-seconds", type=float, default=0.0, help="Fail if benchmark runtime is below this (guided_diffusion_e2e)")
+    parser.add_argument(
+        "--semantic-threshold",
+        type=float,
+        default=0.0,
+        help="Enable LanPaint semantic early-stop if > 0 (guided_diffusion_e2e)",
+    )
+    parser.add_argument("--semantic-patience", type=int, default=1, help="Semantic early-stop patience (guided_diffusion_e2e)")
+    parser.add_argument("--semantic-min-steps", type=int, default=1, help="Semantic early-stop min_steps (guided_diffusion_e2e)")
     args = parser.parse_args()
 
     if args.subset <= 0:
@@ -388,6 +401,10 @@ def main() -> None:
         raise SystemExit("--n-steps must be > 0")
     if args.shuffle_buffer <= 0:
         raise SystemExit("--shuffle-buffer must be > 0")
+    if args.semantic_patience <= 0:
+        raise SystemExit("--semantic-patience must be > 0")
+    if args.semantic_min_steps <= 0:
+        raise SystemExit("--semantic-min-steps must be > 0")
 
     device_str = args.device
     if device_str == "auto":
@@ -423,6 +440,14 @@ def main() -> None:
         if args.lanpaintbench is None or args.checkpoint is None:
             raise SystemExit("--lanpaintbench and --checkpoint are required for guided_diffusion_e2e mode")
 
+        semantic_stop = None
+        if float(args.semantic_threshold) > 0.0:
+            semantic_stop = {
+                "threshold": float(args.semantic_threshold),
+                "patience": int(args.semantic_patience),
+                "min_steps": int(args.semantic_min_steps),
+            }
+
         score, stats = _run_guided_diffusion_e2e_bench(
             LanPaintEngine,
             images,
@@ -436,6 +461,7 @@ def main() -> None:
             beta_start=args.beta_start,
             beta_end=args.beta_end,
             train_timesteps=args.train_timesteps,
+            semantic_stop=semantic_stop,
         )
         if args.min_seconds > 0.0 and stats.get("seconds_total", 0.0) < args.min_seconds:
             raise SystemExit(f"benchmark too fast: {stats.get('seconds_total', 0.0):.1f}s < {args.min_seconds:.1f}s")
@@ -463,6 +489,9 @@ def main() -> None:
                     "lanpaintbench": str(args.lanpaintbench) if args.lanpaintbench is not None else None,
                     "checkpoint": str(args.checkpoint) if args.checkpoint is not None else None,
                     "device": device_str,
+                    "semantic_threshold": args.semantic_threshold,
+                    "semantic_patience": args.semantic_patience,
+                    "semantic_min_steps": args.semantic_min_steps,
                 },
             },
             f,

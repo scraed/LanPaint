@@ -2,6 +2,47 @@ name: LanPaintBench LPIPS (ImageNet subset)
 
 on:
   workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "Base ref to benchmark against (commit SHA or branch). Leave empty to use repo default branch."
+        required: false
+        default: ""
+      subset:
+        description: "Number of ImageNet images to benchmark"
+        required: true
+        default: "10"
+      sample_steps:
+        description: "Outer diffusion steps (guided_diffusion_e2e)"
+        required: true
+        default: "20"
+      n_steps:
+        description: "LanPaint inner steps per outer step"
+        required: true
+        default: "5"
+      seed:
+        description: "Random seed"
+        required: true
+        default: "42"
+      shuffle_buffer:
+        description: "HF streaming shuffle buffer"
+        required: true
+        default: "1024"
+      semantic_threshold:
+        description: "Enable semantic early-stop if > 0 (head_on run)"
+        required: true
+        default: "0.01"
+      semantic_patience:
+        description: "Semantic early-stop patience (head_on run)"
+        required: true
+        default: "2"
+      semantic_min_steps:
+        description: "Semantic early-stop minimum steps (head_on run)"
+        required: true
+        default: "2"
+      min_seconds:
+        description: "Fail if a benchmark runtime is below this (0 to disable)"
+        required: true
+        default: "0"
 
 jobs:
   benchmark:
@@ -10,7 +51,7 @@ jobs:
     timeout-minutes: 360
     env:
       HF_HOME: ~/.cache/huggingface
-      BASE_REF: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch }}
+      BASE_REF: ${{ inputs.base_ref || github.event.repository.default_branch }}
       OMP_NUM_THREADS: "1"
       MKL_NUM_THREADS: "1"
       LANPAINTBENCH_REF: "ea5be5d"
@@ -78,16 +119,17 @@ jobs:
             --output baseline.json \
             --dataset benjamin-paine/imagenet-1k-256x256 \
             --split train \
-            --subset 50 \
-            --seed 42 \
-            --shuffle-buffer 1024 \
+            --subset "${{ inputs.subset }}" \
+            --seed "${{ inputs.seed }}" \
+            --shuffle-buffer "${{ inputs.shuffle_buffer }}" \
             --mask-type box \
-            --n-steps 5 \
-            --sample-steps 20 \
+            --n-steps "${{ inputs.n_steps }}" \
+            --sample-steps "${{ inputs.sample_steps }}" \
             --device cpu \
-            --min-seconds 3600
+            --min-seconds "${{ inputs.min_seconds }}" \
+            --semantic-threshold 0.0
 
-      - name: Run Current Benchmark
+      - name: Run Head Benchmark (early-stop OFF)
         run: |
           CHECKPOINT_PATH="$HOME/.cache/lanpaintbench/checkpoints/256x256_diffusion_uncond.pt"
           python head/tests/benchmark_lpips.py \
@@ -95,18 +137,63 @@ jobs:
             --src head/src \
             --lanpaintbench bench \
             --checkpoint "$CHECKPOINT_PATH" \
-            --output current.json \
+            --output head_off.json \
             --dataset benjamin-paine/imagenet-1k-256x256 \
             --split train \
-            --subset 50 \
-            --seed 42 \
-            --shuffle-buffer 1024 \
+            --subset "${{ inputs.subset }}" \
+            --seed "${{ inputs.seed }}" \
+            --shuffle-buffer "${{ inputs.shuffle_buffer }}" \
             --mask-type box \
-            --n-steps 5 \
-            --sample-steps 20 \
+            --n-steps "${{ inputs.n_steps }}" \
+            --sample-steps "${{ inputs.sample_steps }}" \
             --device cpu \
-            --min-seconds 3600
+            --min-seconds "${{ inputs.min_seconds }}" \
+            --semantic-threshold 0.0
 
-      - name: Compare Results
+      - name: Run Head Benchmark (early-stop ON)
         run: |
-          python head/tests/compare_benchmarks.py --baseline baseline.json --current current.json --max-rel-diff 0.01 --max-abs-diff 0.0
+          CHECKPOINT_PATH="$HOME/.cache/lanpaintbench/checkpoints/256x256_diffusion_uncond.pt"
+          python head/tests/benchmark_lpips.py \
+            --mode guided_diffusion_e2e \
+            --src head/src \
+            --lanpaintbench bench \
+            --checkpoint "$CHECKPOINT_PATH" \
+            --output head_on.json \
+            --dataset benjamin-paine/imagenet-1k-256x256 \
+            --split train \
+            --subset "${{ inputs.subset }}" \
+            --seed "${{ inputs.seed }}" \
+            --shuffle-buffer "${{ inputs.shuffle_buffer }}" \
+            --mask-type box \
+            --n-steps "${{ inputs.n_steps }}" \
+            --sample-steps "${{ inputs.sample_steps }}" \
+            --device cpu \
+            --min-seconds "${{ inputs.min_seconds }}" \
+            --semantic-threshold "${{ inputs.semantic_threshold }}" \
+            --semantic-patience "${{ inputs.semantic_patience }}" \
+            --semantic-min-steps "${{ inputs.semantic_min_steps }}"
+
+      - name: Compare baseline vs head_off
+        continue-on-error: true
+        run: |
+          python head/tests/compare_benchmarks.py --baseline baseline.json --current head_off.json --max-rel-diff 0.01 --max-abs-diff 0.0
+
+      - name: Compare head_off vs head_on
+        continue-on-error: true
+        run: |
+          python head/tests/compare_benchmarks.py --baseline head_off.json --current head_on.json --max-rel-diff 0.01 --max-abs-diff 0.0
+
+      - name: Compare baseline vs head_on
+        continue-on-error: true
+        run: |
+          python head/tests/compare_benchmarks.py --baseline baseline.json --current head_on.json --max-rel-diff 0.01 --max-abs-diff 0.0
+
+      - name: Upload benchmark JSON
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: lpips-benchmark-json
+          path: |
+            baseline.json
+            head_off.json
+            head_on.json
