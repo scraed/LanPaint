@@ -80,9 +80,6 @@ class LanPaint():
             except Exception:
                 abt_val = 0.0
 
-            if abt_val > 0.8:
-                min_steps = max(min_steps, int(n_steps))
-
         for i in range(n_steps):
             score_func = partial( self.score_model, y = self.latent_image, mask = latent_mask, abt = self.add_none_dims(abt), sigma = self.add_none_dims(VE_Sigma), tflow = self.add_none_dims(Flow_t), model_options = model_options, seed = seed )
 
@@ -109,8 +106,16 @@ class LanPaint():
                         dist = distance_fn(x_t, x_t_prev)
 
                 if dist is None:
-                    diff = (x_t - x_t_prev) * (1 - latent_mask)
-                    dist = torch.mean(diff**2).item()
+                    # Measure masked per-element MSE (normalized by mask area), in fp32 to avoid fp16 quantization.
+                    inpaint = (1 - latent_mask).to(dtype=torch.float32)
+                    diff = (x_t.to(dtype=torch.float32) - x_t_prev.to(dtype=torch.float32)) * inpaint
+                    denom = torch.sum(inpaint) + 1e-12
+                    dist = (torch.sum(diff**2) / denom).item()
+
+                    # Normalize by (1 - abt) because Langevin noise variance scales linearly with (1 - abt).
+                    # This prevents early stopping just because the noise amplitude shrinks at the tail.
+                    scale = max(1.0 - abt_val, 1e-6)
+                    dist = dist / scale
 
                 if float(dist) <= threshold:
                     patience_counter += 1

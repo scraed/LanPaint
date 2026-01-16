@@ -136,6 +136,42 @@ def test_semantic_stop_is_disabled_for_very_late_steps() -> None:
     }
 
     x, latent_image, noise, sigma, latent_mask, current_times = _inputs()
+
+    # Use a constant per-step update so dist is deterministic, then assert that the
+    # effective threshold becomes stricter as abt -> 1 (so we don't stop too early
+    # in the low-noise regime).
+    delta = 0.01
+
+    def fake_langevin_delta(x_t, score, mask, step_size, current_times, sigma_x=1, sigma_y=0, args=None):  # type: ignore[no-untyped-def]
+        calls["langevin"] += 1
+        return x_t + delta, args
+
+    engine.langevin_dynamics = fake_langevin_delta  # type: ignore[method-assign]
+
+    model_options = {
+        "lanpaint_semantic_stop": {
+            "threshold": delta * delta,
+            "min_steps": 2,
+            "patience": 1,
+        }
+    }
+
+    calls["langevin"] = 0
+    current_times = (sigma, torch.tensor([0.0]), torch.tensor([0.0]))
+    engine(
+        x,
+        latent_image,
+        noise,
+        sigma,
+        latent_mask,
+        current_times,
+        model_options=model_options,
+        seed=0,
+        n_steps=10,
+    )
+    assert calls["langevin"] == 2
+
+    calls["langevin"] = 0
     current_times = (sigma, torch.tensor([0.99]), torch.tensor([0.0]))
     engine(
         x,
@@ -148,5 +184,72 @@ def test_semantic_stop_is_disabled_for_very_late_steps() -> None:
         seed=0,
         n_steps=10,
     )
+    assert calls["langevin"] == 10
 
+
+def test_default_semantic_stop_is_mask_normalized() -> None:
+    engine = LanPaintEngine(
+        _DummyModel(),
+        NSteps=10,
+        Friction=15.0,
+        Lambda=1.0,
+        Beta=1.0,
+        StepSize=0.2,
+    )
+
+    calls = {"langevin": 0}
+    delta = 0.01
+
+    def fake_langevin_delta(x_t, score, mask, step_size, current_times, sigma_x=1, sigma_y=0, args=None):  # type: ignore[no-untyped-def]
+        calls["langevin"] += 1
+        return x_t + delta, args
+
+    engine.langevin_dynamics = fake_langevin_delta  # type: ignore[method-assign]
+
+    # Choose a threshold that would previously depend on how much of the tensor is masked.
+    model_options = {
+        "lanpaint_semantic_stop": {
+            "threshold": (delta * delta) * 0.2,
+            "min_steps": 2,
+            "patience": 1,
+        }
+    }
+
+    x, latent_image, noise, sigma, latent_mask, current_times = _inputs()
+    current_times = (sigma, torch.tensor([0.0]), torch.tensor([0.0]))
+
+    # Small hole (unknown region) -> mask mostly 1, with a small 0 patch.
+    small_hole_mask = torch.ones_like(latent_mask)
+    small_hole_mask[:, :, 3:5, 3:5] = 0.0
+
+    calls["langevin"] = 0
+    engine(
+        x,
+        latent_image,
+        noise,
+        sigma,
+        small_hole_mask,
+        current_times,
+        model_options=model_options,
+        seed=0,
+        n_steps=10,
+    )
+    assert calls["langevin"] == 10
+
+    # Larger hole (unknown region).
+    large_hole_mask = torch.ones_like(latent_mask)
+    large_hole_mask[:, :, 1:7, 1:7] = 0.0
+
+    calls["langevin"] = 0
+    engine(
+        x,
+        latent_image,
+        noise,
+        sigma,
+        large_hole_mask,
+        current_times,
+        model_options=model_options,
+        seed=0,
+        n_steps=10,
+    )
     assert calls["langevin"] == 10
