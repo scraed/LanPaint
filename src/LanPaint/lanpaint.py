@@ -74,6 +74,15 @@ class LanPaint():
         patience = max(1, patience)
         patience_counter = 0
 
+        if enabled_early_stop:
+            try:
+                abt_val = float(torch.mean(abt).item())
+            except Exception:
+                abt_val = 0.0
+
+            if abt_val > 0.8:
+                min_steps = max(min_steps, int(n_steps))
+
         for i in range(n_steps):
             score_func = partial( self.score_model, y = self.latent_image, mask = latent_mask, abt = self.add_none_dims(abt), sigma = self.add_none_dims(VE_Sigma), tflow = self.add_none_dims(Flow_t), model_options = model_options, seed = seed )
 
