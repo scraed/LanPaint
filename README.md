@@ -343,7 +343,7 @@ You need to follow the ComfyUI version of [SD 3.5 workflow](https://comfyui-wiki
 
 (Note: Prompt First mode is disabled on Flux.2.Dev. As it does not use CFG guidance.)
 
-### Example Flux 2 klein: InPaint(LanPaint K Sampler, 5 steps of thinking)
+### Example Flux 2 klein: InPaint(LanPaint K Sampler, 2 steps of thinking)
 
 <details open>
 <summary>View Original / Masked / Inpainted Comparison</summary>
