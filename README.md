@@ -67,7 +67,7 @@ Check our latest [Wan 2.2 Video Examples](#video-examples-beta), [Wan 2.2 Image 
   - [Resource Consumption](#resource-consumption)
 - [Image Examples](#image-examples)
   - [Flux.2.Dev](#example-flux2dev-inpaintlanpaint-k-sampler-5-steps-of-thinking)
-  - [Flux 2 klein](#example-flux-2-klein-inpaintlanpaint-k-sampler-5-steps-of-thinking)
+  - [Flux 2 klein](#example-flux-2-klein-inpaintlanpaint-k-sampler-2-steps-of-thinking)
   - [Z-image](#example-z-image-inpaintlanpaint-k-sampler-5-steps-of-thinking)
   - [Hunyuan T2I](#example-hunyuan-t2i-inpaintlanpaint-k-sampler-5-steps-of-thinking)
   - [Wan 2.2 T2I](#example-wan22-inpaintlanpaint-k-sampler-5-steps-of-thinking)
