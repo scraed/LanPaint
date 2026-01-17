@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 
 from src.LanPaint.lanpaint import LanPaint as LanPaintEngine
 
@@ -295,3 +296,91 @@ def test_default_semantic_stop_is_mask_normalized() -> None:
     assert calls["langevin"] == 10
     assert calls["with_score"] == 10
     assert calls["without_score"] == 0
+
+
+def test_semantic_stop_does_not_freeze_while_ring_changes() -> None:
+    engine = LanPaintEngine(
+        _DummyModel(),
+        NSteps=10,
+        Friction=15.0,
+        Lambda=1.0,
+        Beta=1.0,
+        StepSize=0.2,
+    )
+
+    batch = 1
+    channels = 4
+    height = 64
+    width = 64
+
+    x = torch.zeros((batch, channels, height, width))
+    latent_image = torch.zeros_like(x)
+    noise = torch.ones_like(x)
+    sigma = torch.tensor([1.0])
+
+    # latent_mask uses LanPaint convention: 1=known region, 0=to-inpaint.
+    latent_mask = torch.ones_like(x)
+    latent_mask[:, :, 12:52, 12:52] = 0.0
+    inpaint_mask = 1.0 - latent_mask
+
+    # Replicate the "ring" construction in LanPaint: a dilated mask boundary
+    # intersected with the inpaint region.
+    mask_f = latent_mask.to(dtype=torch.float32)
+    dilated = F.max_pool2d(mask_f, kernel_size=11, stride=1, padding=5)
+    ring_mask = (dilated - mask_f).clamp(min=0.0, max=1.0) * inpaint_mask.to(dtype=torch.float32)
+
+    ring_area = float(torch.sum(ring_mask).item())
+    inpaint_area = float(torch.sum(inpaint_mask).item())
+    assert ring_area > 0.0
+    assert ring_area < inpaint_area
+
+    threshold = 1e-6
+    ratio = inpaint_area / ring_area
+    delta_sq = threshold * ratio * 0.9
+    delta = float(delta_sq**0.5)
+
+    calls = {"langevin": 0, "with_score": 0, "without_score": 0}
+
+    def fake_langevin_delta(x_t, score, mask, step_size, current_times, sigma_x=1, sigma_y=0, args=None):  # type: ignore[no-untyped-def]
+        calls["langevin"] += 1
+        if score is None:
+            calls["without_score"] += 1
+        else:
+            calls["with_score"] += 1
+
+        # Simulate a case where the interior is stable, but the boundary ring keeps changing.
+        step = float(calls["langevin"])
+        x0 = ring_mask.to(dtype=x_t.dtype) * (step * delta)
+        return x_t, (None, None, x0)
+
+    engine.langevin_dynamics = fake_langevin_delta  # type: ignore[method-assign]
+
+    current_times = (sigma, torch.tensor([0.0]), torch.tensor([0.0]))
+    model_options = {
+        "lanpaint_semantic_stop": {
+            "threshold": threshold,
+            "min_steps": 2,
+            "patience": 1,
+        }
+    }
+
+    engine(
+        x,
+        latent_image,
+        noise,
+        sigma,
+        latent_mask,
+        current_times,
+        model_options=model_options,
+        seed=0,
+        n_steps=10,
+    )
+
+    # If ring changes are respected, we should never "freeze" (i.e. score never becomes None).
+    assert calls["langevin"] == 10
+    assert calls["with_score"] == 10
+    assert calls["without_score"] == 0
+
+    # If ring changes were ignored, inpaint-average MSE would fall below the threshold
+    # and the sampler would freeze early. This test ensures we keep running the model
+    # while the boundary is still changing.
