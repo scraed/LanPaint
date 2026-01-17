@@ -67,6 +67,7 @@ Check our latest [Wan 2.2 Video Examples](#video-examples-beta), [Wan 2.2 Image 
   - [Resource Consumption](#resource-consumption)
 - [Image Examples](#image-examples)
   - [Flux.2.Dev](#example-flux2dev-inpaintlanpaint-k-sampler-5-steps-of-thinking)
+  - [Flux 2 klein](#example-flux-2-klein-inpaintlanpaint-k-sampler-5-steps-of-thinking)
   - [Z-image](#example-z-image-inpaintlanpaint-k-sampler-5-steps-of-thinking)
   - [Hunyuan T2I](#example-hunyuan-t2i-inpaintlanpaint-k-sampler-5-steps-of-thinking)
   - [Wan 2.2 T2I](#example-wan22-inpaintlanpaint-k-sampler-5-steps-of-thinking)
@@ -341,6 +342,22 @@ You need to follow the ComfyUI version of [SD 3.5 workflow](https://comfyui-wiki
 [Model Used in This Example](https://huggingface.co/Comfy-Org/flux2-dev)
 
 (Note: Prompt First mode is disabled on Flux.2.Dev. As it does not use CFG guidance.)
+
+### Example Flux 2 klein: InPaint(LanPaint K Sampler, 5 steps of thinking)
+
+<details open>
+<summary>View Original / Masked / Inpainted Comparison</summary>
+
+| Original | Masked | Inpainted |
+|:--------:|:------:|:---------:|
+| ![Original Flux 2 klein](https://github.com/scraed/LanPaint/blob/master/examples/Example_24/Original_No_Mask.png) | ![Masked Flux 2 klein](https://github.com/scraed/LanPaint/blob/master/examples/Example_24/Masked_Load_Me_in_Loader.png) | ![Inpainted Flux 2 klein](https://github.com/scraed/LanPaint/blob/master/examples/Example_24/InPainted_Drag_Me_to_ComfyUI.png) |
+
+</details>
+
+[View Workflow & Masks](https://github.com/scraed/LanPaint/tree/master/examples/Example_24)
+
+[Model Used in This Example](https://docs.comfy.org/zh-CN/tutorials/flux/flux-2-klein)
+
 
 ### Example Flux: InPaint(LanPaint K Sampler, 5 steps of thinking)
 ![Inpainting Result 7](https://github.com/scraed/LanPaint/blob/master/examples/InpaintChara_10.jpg)  
