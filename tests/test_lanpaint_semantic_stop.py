@@ -78,9 +78,9 @@ def test_semantic_stop_triggers_deterministically_at_min_steps() -> None:
         n_steps=10,
     )
 
-    assert calls["langevin"] == 10
+    assert calls["langevin"] == 3
     assert calls["with_score"] == 3
-    assert calls["without_score"] == 7
+    assert calls["without_score"] == 0
     assert calls["distance"] == 3
 
 
@@ -117,9 +117,9 @@ def test_default_semantic_stop_triggers_at_min_steps_without_custom_distance_fn(
     x, latent_image, noise, sigma, latent_mask, current_times = _inputs()
     engine(x, latent_image, noise, sigma, latent_mask, current_times, model_options=model_options, seed=0, n_steps=10)
 
-    assert calls["langevin"] == 10
+    assert calls["langevin"] == 3
     assert calls["with_score"] == 3
-    assert calls["without_score"] == 7
+    assert calls["without_score"] == 0
 
 
 def test_semantic_stop_is_disabled_for_very_late_steps() -> None:
@@ -179,7 +179,7 @@ def test_semantic_stop_is_disabled_for_very_late_steps() -> None:
     }
 
     calls["langevin"] = 0
-    current_times = (sigma, torch.tensor([0.0]), torch.tensor([0.0]))
+    current_times = (sigma, torch.tensor([0.5]), torch.tensor([0.0]))
     engine(
         x,
         latent_image,
@@ -191,9 +191,9 @@ def test_semantic_stop_is_disabled_for_very_late_steps() -> None:
         seed=0,
         n_steps=10,
     )
-    assert calls["langevin"] == 10
+    assert calls["langevin"] == 3
     assert calls["with_score"] == 3
-    assert calls["without_score"] == 7
+    assert calls["without_score"] == 0
 
     calls["langevin"] = 0
     calls["with_score"] = 0
@@ -210,9 +210,58 @@ def test_semantic_stop_is_disabled_for_very_late_steps() -> None:
         seed=0,
         n_steps=10,
     )
-    assert calls["langevin"] == 10
+    assert calls["langevin"] == 4
     assert calls["with_score"] == 4
-    assert calls["without_score"] == 6
+    assert calls["without_score"] == 0
+
+
+def test_semantic_stop_is_disabled_for_very_early_steps() -> None:
+    engine = LanPaintEngine(
+        _DummyModel(),
+        NSteps=10,
+        Friction=15.0,
+        Lambda=1.0,
+        Beta=1.0,
+        StepSize=0.2,
+    )
+
+    calls = {"langevin": 0, "with_score": 0, "without_score": 0}
+
+    def fake_langevin(x_t, score, mask, step_size, current_times, sigma_x=1, sigma_y=0, args=None):  # type: ignore[no-untyped-def]
+        calls["langevin"] += 1
+        if score is None:
+            calls["without_score"] += 1
+        else:
+            calls["with_score"] += 1
+        return x_t, args
+
+    engine.langevin_dynamics = fake_langevin  # type: ignore[method-assign]
+
+    model_options = {
+        "lanpaint_semantic_stop": {
+            "threshold": 1e-6,
+            "min_steps": 2,
+            "patience": 1,
+        }
+    }
+
+    x, latent_image, noise, sigma, latent_mask, _ = _inputs()
+    current_times = (sigma, torch.tensor([0.0]), torch.tensor([0.0]))
+    engine(
+        x,
+        latent_image,
+        noise,
+        sigma,
+        latent_mask,
+        current_times,
+        model_options=model_options,
+        seed=0,
+        n_steps=10,
+    )
+
+    assert calls["langevin"] == 10
+    assert calls["with_score"] == 10
+    assert calls["without_score"] == 0
 
 
 def test_default_semantic_stop_is_mask_normalized() -> None:
@@ -298,7 +347,7 @@ def test_default_semantic_stop_is_mask_normalized() -> None:
     assert calls["without_score"] == 0
 
 
-def test_semantic_stop_does_not_freeze_while_ring_changes() -> None:
+def test_semantic_stop_does_not_stop_while_ring_changes() -> None:
     engine = LanPaintEngine(
         _DummyModel(),
         NSteps=10,
@@ -376,11 +425,11 @@ def test_semantic_stop_does_not_freeze_while_ring_changes() -> None:
         n_steps=10,
     )
 
-    # If ring changes are respected, we should never "freeze" (i.e. score never becomes None).
+    # If ring changes are respected, we should never stop early.
     assert calls["langevin"] == 10
     assert calls["with_score"] == 10
     assert calls["without_score"] == 0
 
     # If ring changes were ignored, inpaint-average MSE would fall below the threshold
-    # and the sampler would freeze early. This test ensures we keep running the model
+    # and the sampler would stop early. This test ensures we keep running the model
     # while the boundary is still changing.
