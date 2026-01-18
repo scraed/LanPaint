@@ -91,7 +91,13 @@ class LanPaint():
             if abt_val < 0.15 or abt_val > 0.999:
                 enabled_early_stop = False
             else:
-                patience_eff = patience + 1 + (1 if abt_val > 0.9 else 0)
+                # More noise -> require more consecutive stable steps before stopping.
+                # This keeps early-stop conservative in mid-noise outer steps.
+                patience_eff = patience + 1
+                if abt_val < 0.5:
+                    patience_eff += 1
+                if abt_val > 0.9:
+                    patience_eff += 1
                 threshold_scale = max(0.1, (1.0 - abt_val) ** 0.5)
                 threshold_eff = threshold * threshold_scale
 
