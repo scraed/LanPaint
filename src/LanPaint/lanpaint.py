@@ -78,35 +78,42 @@ class LanPaint():
         threshold_eff = threshold
         inpaint_weight = None
         ring_weight = None
+        trace = None
 
         if enabled_early_stop:
             try:
                 abt_val = float(torch.mean(abt).item())
             except Exception:
                 abt_val = 0.0
-            patience_eff = patience + 1 + (1 if abt_val > 0.9 else 0)
-            threshold_scale = max(0.1, (1.0 - abt_val) ** 0.5)
-            threshold_eff = threshold * threshold_scale
 
-            inpaint_weight = (1 - latent_mask).to(dtype=torch.float32)
-            if latent_mask.dim() == 4:
-                mask_f = latent_mask.to(dtype=torch.float32)
-                dilated = F.max_pool2d(mask_f, kernel_size=11, stride=1, padding=5)
-                ring_weight = (dilated - mask_f).clamp(min=0.0, max=1.0) * inpaint_weight
+            # Skip semantic early-stop in extremely noisy steps (low abt) and
+            # at the extreme tail where even tiny changes can matter.
+            if abt_val < 0.15 or abt_val > 0.999:
+                enabled_early_stop = False
+            else:
+                patience_eff = patience + 1 + (1 if abt_val > 0.9 else 0)
+                threshold_scale = max(0.1, (1.0 - abt_val) ** 0.5)
+                threshold_eff = threshold * threshold_scale
 
-        frozen = False
+                inpaint_weight = (1 - latent_mask).to(dtype=torch.float32)
+                if latent_mask.dim() == 4:
+                    mask_f = latent_mask.to(dtype=torch.float32)
+                    dilated = F.max_pool2d(mask_f, kernel_size=11, stride=1, padding=5)
+                    ring_weight = (dilated - mask_f).clamp(min=0.0, max=1.0) * inpaint_weight
+                if isinstance(model_options, dict):
+                    trace = model_options.get("lanpaint_semantic_trace")
+
+        x0_anchor = None
         for i in range(n_steps):
-            score_func = None
-            if not frozen:
-                score_func = partial( self.score_model, y = self.latent_image, mask = latent_mask, abt = self.add_none_dims(abt), sigma = self.add_none_dims(VE_Sigma), tflow = self.add_none_dims(Flow_t), model_options = model_options, seed = seed )
+            score_func = partial( self.score_model, y = self.latent_image, mask = latent_mask, abt = self.add_none_dims(abt), sigma = self.add_none_dims(VE_Sigma), tflow = self.add_none_dims(Flow_t), model_options = model_options, seed = seed )
 
             prev_args = args
-            x_t_prev = x_t.detach() if enabled_early_stop and (not frozen) and callable(distance_fn) else None
-            x_t_before = x_t if enabled_early_stop and (not frozen) else None
+            x_t_prev = x_t.detach() if enabled_early_stop and callable(distance_fn) else None
+            x_t_before = x_t if enabled_early_stop else None
 
             x_t, args = self.langevin_dynamics(x_t, score_func , latent_mask, step_size , current_times, sigma_x = self.add_none_dims(self.sigma_x(abt)), sigma_y = self.add_none_dims(self.sigma_y(abt)), args = args)  
 
-            if enabled_early_stop and (not frozen) and x_t_before is not None:
+            if enabled_early_stop and x_t_before is not None:
                 ctx = {
                     "step": i,
                     "steps_done": i + 1,
@@ -118,15 +125,21 @@ class LanPaint():
                 }
 
                 dist = None
+                custom_dist = False
+                dist_inpaint = None
+                dist_ring = None
+                dist_drift = None
+                x0_prev = None
+                x0_cur = None
+
                 if callable(distance_fn):
                     try:
                         dist = distance_fn(x_t_prev, x_t, ctx)
                     except TypeError:
                         dist = distance_fn(x_t, x_t_prev)
+                    custom_dist = dist is not None
 
                 if dist is None:
-                    x0_prev = None
-                    x0_cur = None
                     if isinstance(prev_args, tuple) and len(prev_args) >= 3:
                         x0_prev = prev_args[2]
                     if isinstance(args, tuple) and len(args) >= 3:
@@ -136,24 +149,72 @@ class LanPaint():
                         inpaint = inpaint_weight if inpaint_weight is not None else (1 - latent_mask).to(dtype=torch.float32)
                         diff_sq = (x0_cur.to(dtype=torch.float32) - x0_prev.to(dtype=torch.float32)) ** 2
                         denom = torch.sum(inpaint) + 1e-12
-                        dist = (torch.sum(diff_sq * inpaint) / denom).item()
+                        dist_inpaint = (torch.sum(diff_sq * inpaint) / denom).item()
+                        dist = float(dist_inpaint)
                         if ring_weight is not None:
                             ring_denom = torch.sum(ring_weight) + 1e-12
                             dist_ring = (torch.sum(diff_sq * ring_weight) / ring_denom).item()
-                            dist = max(float(dist), float(dist_ring))
+                            dist = max(float(dist_inpaint), float(dist_ring))
                     else:
                         inpaint = inpaint_weight if inpaint_weight is not None else (1 - latent_mask).to(dtype=torch.float32)
                         diff_sq = (x_t.to(dtype=torch.float32) - x_t_before.to(dtype=torch.float32)) ** 2
                         denom = torch.sum(inpaint) + 1e-12
                         dist = (torch.sum(diff_sq * inpaint) / denom).item()
+                        dist_inpaint = dist
 
-                if float(dist) <= (threshold if callable(distance_fn) else threshold_eff):
+                threshold_used = threshold if custom_dist else threshold_eff
+
+                # Extra guard: even if per-step changes are tiny, avoid stopping if the
+                # x0 estimate keeps drifting over several steps.
+                if x0_cur is not None and not custom_dist:
+                    if float(dist) <= threshold_used:
+                        if x0_anchor is None:
+                            x0_anchor = x0_cur.detach()
+                        else:
+                            inpaint = inpaint_weight if inpaint_weight is not None else (1 - latent_mask).to(dtype=torch.float32)
+                            diff_sq = (x0_cur.to(dtype=torch.float32) - x0_anchor.to(dtype=torch.float32)) ** 2
+                            denom = torch.sum(inpaint) + 1e-12
+                            drift_inpaint = (torch.sum(diff_sq * inpaint) / denom).item()
+                            dist_drift = float(drift_inpaint)
+                            if ring_weight is not None:
+                                ring_denom = torch.sum(ring_weight) + 1e-12
+                                drift_ring = (torch.sum(diff_sq * ring_weight) / ring_denom).item()
+                                dist_drift = max(float(drift_inpaint), float(drift_ring))
+                            dist = max(float(dist), float(dist_drift))
+                    else:
+                        x0_anchor = None
+
+                if float(dist) <= threshold_used:
                     patience_counter += 1
                 else:
                     patience_counter = 0
+                    x0_anchor = None
 
-                if (i + 1) >= min_steps and patience_counter >= patience_eff:
-                    frozen = True
+                should_stop = (i + 1) >= min_steps and patience_counter >= patience_eff
+                if isinstance(trace, list):
+                    trace.append(
+                        {
+                            "case_id": model_options.get("bench_case_id") if isinstance(model_options, dict) else None,
+                            "outer_step": model_options.get("bench_outer_step") if isinstance(model_options, dict) else None,
+                            "bench_timestep": model_options.get("bench_timestep") if isinstance(model_options, dict) else None,
+                            "inner_step": i + 1,
+                            "dist": float(dist),
+                            "dist_inpaint": None if dist_inpaint is None else float(dist_inpaint),
+                            "dist_ring": None if dist_ring is None else float(dist_ring),
+                            "dist_drift": None if dist_drift is None else float(dist_drift),
+                            "threshold": float(threshold_used),
+                            "threshold_eff": float(threshold_eff),
+                            "patience_counter": int(patience_counter),
+                            "patience_eff": int(patience_eff),
+                            "min_steps": int(min_steps),
+                            "abt": float(abt_val),
+                            "custom_dist": bool(custom_dist),
+                            "stopped": bool(should_stop),
+                        }
+                    )
+
+                if should_stop:
+                    break
 
         if IS_FLUX or IS_FLOW:
             x = x_t / ( self.add_none_dims(abt)**0.5 + (1-self.add_none_dims(abt))**0.5 )

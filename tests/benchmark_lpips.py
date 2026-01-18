@@ -225,9 +225,11 @@ class _GuidedDiffusionModel:
         self.model_sampling = _GuidedDiffusionSampling()
         self._unet = unet
         self._device = device
+        self.call_count = 0
 
     @torch.no_grad()
     def __call__(self, x, sigma, model_options=None, seed=None):  # type: ignore[no-untyped-def]
+        self.call_count += 1
         if not isinstance(model_options, dict) or "bench_timestep" not in model_options:
             raise ValueError("model_options['bench_timestep'] is required for guided_diffusion mode")
 
@@ -309,6 +311,9 @@ def _run_guided_diffusion_e2e_bench(  # type: ignore[no-untyped-def]
     beta_end: float,
     train_timesteps: int,
     semantic_stop: dict[str, float | int] | None = None,
+    outer_cutoff_steps: int = 0,
+    semantic_trace: list[dict[str, float | int | str | None]] | None = None,
+    report_earlystop: bool = False,
     save_images_dir: Path | None = None,
 ) -> tuple[float, dict[str, float], list[dict[str, float | int | str]]]:
     import lpips
@@ -330,6 +335,14 @@ def _run_guided_diffusion_e2e_bench(  # type: ignore[no-untyped-def]
     scores: list[float] = []
     start = time.perf_counter()
     cases: list[dict[str, float | int | str]] = []
+
+    outer_steps = int(sigmas.shape[0] - 1)
+    n_images = max(1, len(images))
+    model_calls_total = 0
+    inner_steps_executed_total = 0
+    inner_steps_requested_total = 0
+    inner_steps_executed_by_outer_step = [0] * outer_steps
+    inner_steps_requested_by_outer_step = [0] * outer_steps
 
     engine = LanPaintClass(
         Model=model,
@@ -358,6 +371,9 @@ def _run_guided_diffusion_e2e_bench(  # type: ignore[no-untyped-def]
 
         x = latent_image + noise * sigmas[0].reshape((1,) + (1,) * (img.ndim - 1))
 
+        case_model_calls = 0
+        case_inner_steps_executed = 0
+        case_inner_steps_requested = 0
         for step_idx in range(sigmas.shape[0] - 1):
             sigma = sigmas[step_idx : step_idx + 1]
             sigma_next = sigmas[step_idx + 1 : step_idx + 2]
@@ -367,10 +383,22 @@ def _run_guided_diffusion_e2e_bench(  # type: ignore[no-untyped-def]
             flow_t = torch.sqrt(1.0 - abt) / (torch.sqrt(1.0 - abt) + torch.sqrt(abt))
             current_times = (sigma, abt, flow_t)
 
-            model_options = {"bench_timestep": int(t)}
+            remaining = outer_steps - step_idx
+            inner_steps_eff = inner_steps
+            if outer_cutoff_steps > 0 and remaining <= outer_cutoff_steps:
+                inner_steps_eff = 0
+
+            model_options: dict[str, object] = {
+                "bench_timestep": int(t),
+                "bench_case_id": int(idx),
+                "bench_outer_step": int(step_idx),
+            }
             if semantic_stop is not None:
                 model_options["lanpaint_semantic_stop"] = semantic_stop
+            if semantic_trace is not None:
+                model_options["lanpaint_semantic_trace"] = semantic_trace
 
+            model.call_count = 0
             x0 = engine(
                 x=x,
                 latent_image=latent_image,
@@ -380,8 +408,20 @@ def _run_guided_diffusion_e2e_bench(  # type: ignore[no-untyped-def]
                 current_times=current_times,
                 model_options=model_options,
                 seed=seed,
-                n_steps=inner_steps,
+                n_steps=inner_steps_eff,
             )
+            calls_this_step = int(model.call_count)
+            case_model_calls += calls_this_step
+            model_calls_total += calls_this_step
+
+            executed = max(0, calls_this_step - 1)
+            case_inner_steps_executed += executed
+            inner_steps_executed_total += executed
+            inner_steps_executed_by_outer_step[step_idx] += executed
+
+            case_inner_steps_requested += int(inner_steps_eff)
+            inner_steps_requested_total += int(inner_steps_eff)
+            inner_steps_requested_by_outer_step[step_idx] += int(inner_steps_eff)
 
             if float(sigma_next.item()) == 0.0:
                 x = x0
@@ -414,6 +454,9 @@ def _run_guided_diffusion_e2e_bench(  # type: ignore[no-untyped-def]
                 "lpips_inpaint_zero": float(dist_inpaint_zero.item()),
                 "lpips_full": float(dist_full.item()),
                 "mse_inpaint": float(mse_inpaint),
+                "model_calls": int(case_model_calls),
+                "inner_steps_executed": int(case_inner_steps_executed),
+                "inner_steps_requested": int(case_inner_steps_requested),
                 "seconds": float(case_seconds),
             }
         )
@@ -429,6 +472,17 @@ def _run_guided_diffusion_e2e_bench(  # type: ignore[no-untyped-def]
 
     elapsed = time.perf_counter() - start
     stats = {"seconds_total": elapsed, "seconds_per_image": elapsed / max(1, len(images))}
+    if report_earlystop:
+        stats["earlystop"] = {
+            "model_calls_total": int(model_calls_total),
+            "model_calls_per_image": float(model_calls_total / n_images),
+            "inner_steps_executed_total": int(inner_steps_executed_total),
+            "inner_steps_executed_per_image": float(inner_steps_executed_total / n_images),
+            "inner_steps_requested_total": int(inner_steps_requested_total),
+            "inner_steps_requested_per_image": float(inner_steps_requested_total / n_images),
+            "inner_steps_executed_by_outer_step_mean": [float(v / n_images) for v in inner_steps_executed_by_outer_step],
+            "inner_steps_requested_by_outer_step_mean": [float(v / n_images) for v in inner_steps_requested_by_outer_step],
+        }
     return float(np.mean(scores)), stats, cases
 
 
@@ -458,6 +512,12 @@ def main() -> None:
     parser.add_argument("--beta-end", type=float, default=0.02, help="DDPM beta_end (guided_diffusion_e2e)")
     parser.add_argument("--min-seconds", type=float, default=0.0, help="Fail if benchmark runtime is below this (guided_diffusion_e2e)")
     parser.add_argument(
+        "--outer-cutoff-steps",
+        type=int,
+        default=0,
+        help="Disable LanPaint inner iterations for the last N outer steps (guided_diffusion_e2e)",
+    )
+    parser.add_argument(
         "--semantic-threshold",
         type=float,
         default=0.0,
@@ -465,6 +525,8 @@ def main() -> None:
     )
     parser.add_argument("--semantic-patience", type=int, default=1, help="Semantic early-stop patience (guided_diffusion_e2e)")
     parser.add_argument("--semantic-min-steps", type=int, default=1, help="Semantic early-stop min_steps (guided_diffusion_e2e)")
+    parser.add_argument("--report-earlystop", action="store_true", help="Include early-stop stats in output JSON (guided_diffusion_e2e)")
+    parser.add_argument("--trace-inner", type=Path, default=None, help="If set, write per-inner-step semantic trace JSON (guided_diffusion_e2e)")
     parser.add_argument("--save-images-dir", type=Path, default=None, help="If set, save per-case images for manual review")
     args = parser.parse_args()
 
@@ -478,6 +540,8 @@ def main() -> None:
         raise SystemExit("--semantic-patience must be > 0")
     if args.semantic_min_steps <= 0:
         raise SystemExit("--semantic-min-steps must be > 0")
+    if args.outer_cutoff_steps < 0:
+        raise SystemExit("--outer-cutoff-steps must be >= 0")
 
     device_str = args.device
     if device_str == "auto":
@@ -523,6 +587,7 @@ def main() -> None:
                 "min_steps": int(args.semantic_min_steps),
             }
 
+        semantic_trace = [] if args.trace_inner is not None else None
         score, stats, cases = _run_guided_diffusion_e2e_bench(
             LanPaintEngine,
             images,
@@ -537,10 +602,16 @@ def main() -> None:
             beta_end=args.beta_end,
             train_timesteps=args.train_timesteps,
             semantic_stop=semantic_stop,
+            outer_cutoff_steps=int(args.outer_cutoff_steps),
+            semantic_trace=semantic_trace,
+            report_earlystop=bool(args.report_earlystop),
             save_images_dir=args.save_images_dir,
         )
         if args.min_seconds > 0.0 and stats.get("seconds_total", 0.0) < args.min_seconds:
             raise SystemExit(f"benchmark too fast: {stats.get('seconds_total', 0.0):.1f}s < {args.min_seconds:.1f}s")
+        if args.trace_inner is not None and semantic_trace is not None:
+            args.trace_inner.parent.mkdir(parents=True, exist_ok=True)
+            args.trace_inner.write_text(json.dumps(semantic_trace), encoding="utf-8")
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w", encoding="utf-8") as f:
@@ -569,6 +640,9 @@ def main() -> None:
                     "semantic_threshold": args.semantic_threshold,
                     "semantic_patience": args.semantic_patience,
                     "semantic_min_steps": args.semantic_min_steps,
+                    "outer_cutoff_steps": args.outer_cutoff_steps,
+                    "report_earlystop": bool(args.report_earlystop),
+                    "trace_inner": str(args.trace_inner) if args.trace_inner is not None else None,
                 },
                 "cases": cases,
             },
