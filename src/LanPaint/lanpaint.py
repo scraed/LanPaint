@@ -1,6 +1,16 @@
 import torch
 from .utils import StochasticHarmonicOscillator
 from functools import partial
+import inspect
+
+# Early-stop constants
+STOP_THRESHOLD_MIN_ABT = 0.15
+STOP_THRESHOLD_MAX_ABT = 0.999
+PATIENCE_BOOST_LOW_ABT = 0.5
+PATIENCE_BOOST_HIGH_ABT = 0.9
+THRESHOLD_SCALE_MIN = 0.1
+RING_KERNEL_SIZE = 11
+RING_PADDING = 5
 
 class LanPaint():
     def __init__(self, Model, NSteps, Friction, Lambda, Beta, StepSize, IS_FLUX = False, IS_FLOW = False, EarlyStopThreshold = 0.0, EarlyStopPatience = 1, EarlyStopHook = None):
@@ -78,6 +88,7 @@ class LanPaint():
         inpaint_weight = None
         ring_weight = None
         trace = None
+        dist_wrapper = None
 
         if enabled_early_stop:
             try:
@@ -87,17 +98,17 @@ class LanPaint():
 
             # Skip semantic early-stop in extremely noisy steps (low abt) and
             # at the extreme tail where even tiny changes can matter.
-            if abt_val < 0.15 or abt_val > 0.999:
+            if abt_val < STOP_THRESHOLD_MIN_ABT or abt_val > STOP_THRESHOLD_MAX_ABT:
                 enabled_early_stop = False
             else:
                 # More noise -> require more consecutive stable steps before stopping.
                 # This keeps early-stop conservative in mid-noise outer steps.
                 patience_eff = patience + 1
-                if abt_val < 0.5:
+                if abt_val < PATIENCE_BOOST_LOW_ABT:
                     patience_eff += 1
-                if abt_val > 0.9:
+                if abt_val > PATIENCE_BOOST_HIGH_ABT:
                     patience_eff += 1
-                threshold_scale = max(0.1, (1.0 - abt_val) ** 0.5)
+                threshold_scale = max(THRESHOLD_SCALE_MIN, (1.0 - abt_val) ** 0.5)
                 threshold_eff = threshold * threshold_scale
 
                 inpaint_weight = (1 - latent_mask).to(dtype=torch.float32)
@@ -105,12 +116,71 @@ class LanPaint():
                     from torch.nn import functional as F
 
                     mask_f = latent_mask.to(dtype=torch.float32)
-                    dilated = F.max_pool2d(mask_f, kernel_size=11, stride=1, padding=5)
+                    dilated = F.max_pool2d(
+                        mask_f,
+                        kernel_size=RING_KERNEL_SIZE,
+                        stride=1,
+                        padding=RING_PADDING,
+                    )
                     ring_weight = (dilated - mask_f).clamp(min=0.0, max=1.0) * inpaint_weight
                 if isinstance(model_options, dict):
                     trace = model_options.get("lanpaint_semantic_trace")
 
+                if callable(distance_fn):
+                    try:
+                        sig = inspect.signature(distance_fn)
+                        params = list(sig.parameters.values())
+
+                        has_ctx_param = "ctx" in sig.parameters
+                        has_var_kw = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params)
+                        has_var_pos = any(p.kind == inspect.Parameter.VAR_POSITIONAL for p in params)
+
+                        pos_params = [
+                            p
+                            for p in params
+                            if p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+                        ]
+
+                        if len(pos_params) >= 3 or has_var_pos:
+                            # Use 3-arg positional: fn(prev, cur, ctx)
+                            dist_wrapper = lambda p, c, ctx: distance_fn(p, c, ctx)
+                        elif has_ctx_param or has_var_kw:
+                            # Use keyword: fn(prev, cur, ctx=ctx)
+                            dist_wrapper = lambda p, c, ctx: distance_fn(p, c, ctx=ctx)
+                        else:
+                            # Default 2-arg: fn(cur, prev)
+                            dist_wrapper = lambda p, c, ctx: distance_fn(c, p)
+                    except (ValueError, TypeError):
+                        # Fallback for built-ins or complex callables.
+                        # We try 3-args, then fall back to 2-args only if the TypeError
+                        # looks like an argument mismatch.
+                        def fallback_wrapper(p, c, ctx):
+                            try:
+                                return distance_fn(p, c, ctx)
+                            except TypeError as e:
+                                msg = str(e)
+                                if (
+                                    "positional argument" in msg
+                                    or "positional arguments" in msg
+                                    or "required positional" in msg
+                                    or ("takes" in msg and "given" in msg)
+                                ):
+                                    return distance_fn(c, p)
+                                raise
+
+                        dist_wrapper = fallback_wrapper
+
         x0_anchor = None
+
+        # Pre-fetch trace keys to avoid repeated dict lookups
+        bench_case_id = None
+        bench_outer_step = None
+        bench_timestep = None
+        if isinstance(trace, list) and isinstance(model_options, dict):
+            bench_case_id = model_options.get("bench_case_id")
+            bench_outer_step = model_options.get("bench_outer_step")
+            bench_timestep = model_options.get("bench_timestep")
+
         for i in range(n_steps):
             score_func = partial( self.score_model, y = self.latent_image, mask = latent_mask, abt = self.add_none_dims(abt), sigma = self.add_none_dims(VE_Sigma), tflow = self.add_none_dims(Flow_t), model_options = model_options, seed = seed )
 
@@ -139,21 +209,20 @@ class LanPaint():
                 x0_prev = None
                 x0_cur = None
 
-                if callable(distance_fn):
-                    try:
-                        dist = distance_fn(x_t_prev, x_t, ctx)
-                    except TypeError:
-                        dist = distance_fn(x_t, x_t_prev)
+                if dist_wrapper is not None:
+                    dist = dist_wrapper(x_t_prev, x_t, ctx)
                     custom_dist = dist is not None
 
                 if dist is None:
+                    # 'inpaint_weight' is guaranteed to be set when enabled_early_stop is True.
+                    inpaint = inpaint_weight
+
                     if isinstance(prev_args, tuple) and len(prev_args) >= 3:
                         x0_prev = prev_args[2]
                     if isinstance(args, tuple) and len(args) >= 3:
                         x0_cur = args[2]
 
                     if x0_prev is not None and x0_cur is not None:
-                        inpaint = inpaint_weight if inpaint_weight is not None else (1 - latent_mask).to(dtype=torch.float32)
                         diff_sq = (x0_cur.to(dtype=torch.float32) - x0_prev.to(dtype=torch.float32)) ** 2
                         denom = torch.sum(inpaint) + 1e-12
                         dist_inpaint = (torch.sum(diff_sq * inpaint) / denom).item()
@@ -163,7 +232,6 @@ class LanPaint():
                             dist_ring = (torch.sum(diff_sq * ring_weight) / ring_denom).item()
                             dist = max(float(dist_inpaint), float(dist_ring))
                     else:
-                        inpaint = inpaint_weight if inpaint_weight is not None else (1 - latent_mask).to(dtype=torch.float32)
                         diff_sq = (x_t.to(dtype=torch.float32) - x_t_before.to(dtype=torch.float32)) ** 2
                         denom = torch.sum(inpaint) + 1e-12
                         dist = (torch.sum(diff_sq * inpaint) / denom).item()
@@ -178,7 +246,7 @@ class LanPaint():
                         if x0_anchor is None:
                             x0_anchor = x0_cur.detach()
                         else:
-                            inpaint = inpaint_weight if inpaint_weight is not None else (1 - latent_mask).to(dtype=torch.float32)
+                            inpaint = inpaint_weight
                             diff_sq = (x0_cur.to(dtype=torch.float32) - x0_anchor.to(dtype=torch.float32)) ** 2
                             denom = torch.sum(inpaint) + 1e-12
                             drift_inpaint = (torch.sum(diff_sq * inpaint) / denom).item()
@@ -201,9 +269,9 @@ class LanPaint():
                 if isinstance(trace, list):
                     trace.append(
                         {
-                            "case_id": model_options.get("bench_case_id") if isinstance(model_options, dict) else None,
-                            "outer_step": model_options.get("bench_outer_step") if isinstance(model_options, dict) else None,
-                            "bench_timestep": model_options.get("bench_timestep") if isinstance(model_options, dict) else None,
+                            "case_id": bench_case_id,
+                            "outer_step": bench_outer_step,
+                            "bench_timestep": bench_timestep,
                             "inner_step": i + 1,
                             "dist": float(dist),
                             "dist_inpaint": None if dist_inpaint is None else float(dist_inpaint),

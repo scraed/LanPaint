@@ -84,6 +84,125 @@ def test_semantic_stop_triggers_deterministically_at_min_steps() -> None:
     assert calls["distance"] == 3
 
 
+def test_semantic_stop_distance_fn_two_arg_order_is_cur_prev() -> None:
+    engine = LanPaintEngine(
+        _DummyModel(),
+        NSteps=10,
+        Friction=15.0,
+        Lambda=1.0,
+        Beta=1.0,
+        StepSize=0.2,
+    )
+
+    calls = {"langevin": 0, "distance": 0}
+
+    def fake_langevin(x_t, score, mask, step_size, current_times, sigma_x=1, sigma_y=0, args=None):  # type: ignore[no-untyped-def]
+        calls["langevin"] += 1
+        return x_t + 1.0, args
+
+    def distance_fn(cur_x, prev_x):  # type: ignore[no-untyped-def]
+        assert float(torch.mean(cur_x).item()) > float(torch.mean(prev_x).item())
+        calls["distance"] += 1
+        return 0.0
+
+    engine.langevin_dynamics = fake_langevin  # type: ignore[method-assign]
+
+    model_options = {
+        "lanpaint_semantic_stop": {
+            "threshold": 1e-6,
+            "min_steps": 3,
+            "patience": 1,
+            "distance_fn": distance_fn,
+        }
+    }
+
+    x, latent_image, noise, sigma, latent_mask, current_times = _inputs()
+    engine(x, latent_image, noise, sigma, latent_mask, current_times, model_options=model_options, seed=0, n_steps=10)
+
+    assert calls["langevin"] == 3
+    assert calls["distance"] == 3
+
+
+def test_semantic_stop_distance_fn_accepts_third_param_not_named_ctx() -> None:
+    engine = LanPaintEngine(
+        _DummyModel(),
+        NSteps=10,
+        Friction=15.0,
+        Lambda=1.0,
+        Beta=1.0,
+        StepSize=0.2,
+    )
+
+    calls = {"langevin": 0, "distance": 0}
+
+    def fake_langevin(x_t, score, mask, step_size, current_times, sigma_x=1, sigma_y=0, args=None):  # type: ignore[no-untyped-def]
+        calls["langevin"] += 1
+        return x_t, args
+
+    def distance_fn(prev_x, cur_x, meta):  # type: ignore[no-untyped-def]
+        assert isinstance(meta, dict)
+        assert meta["step"] == calls["distance"]
+        calls["distance"] += 1
+        return 0.0
+
+    engine.langevin_dynamics = fake_langevin  # type: ignore[method-assign]
+
+    model_options = {
+        "lanpaint_semantic_stop": {
+            "threshold": 1e-6,
+            "min_steps": 3,
+            "patience": 1,
+            "distance_fn": distance_fn,
+        }
+    }
+
+    x, latent_image, noise, sigma, latent_mask, current_times = _inputs()
+    engine(x, latent_image, noise, sigma, latent_mask, current_times, model_options=model_options, seed=0, n_steps=10)
+
+    assert calls["langevin"] == 3
+    assert calls["distance"] == 3
+
+
+def test_semantic_stop_distance_fn_accepts_kw_only_ctx() -> None:
+    engine = LanPaintEngine(
+        _DummyModel(),
+        NSteps=10,
+        Friction=15.0,
+        Lambda=1.0,
+        Beta=1.0,
+        StepSize=0.2,
+    )
+
+    calls = {"langevin": 0, "distance": 0}
+
+    def fake_langevin(x_t, score, mask, step_size, current_times, sigma_x=1, sigma_y=0, args=None):  # type: ignore[no-untyped-def]
+        calls["langevin"] += 1
+        return x_t, args
+
+    def distance_fn(prev_x, cur_x, *, ctx):  # type: ignore[no-untyped-def]
+        assert isinstance(ctx, dict)
+        assert ctx["step"] == calls["distance"]
+        calls["distance"] += 1
+        return 0.0
+
+    engine.langevin_dynamics = fake_langevin  # type: ignore[method-assign]
+
+    model_options = {
+        "lanpaint_semantic_stop": {
+            "threshold": 1e-6,
+            "min_steps": 3,
+            "patience": 1,
+            "distance_fn": distance_fn,
+        }
+    }
+
+    x, latent_image, noise, sigma, latent_mask, current_times = _inputs()
+    engine(x, latent_image, noise, sigma, latent_mask, current_times, model_options=model_options, seed=0, n_steps=10)
+
+    assert calls["langevin"] == 3
+    assert calls["distance"] == 3
+
+
 def test_default_semantic_stop_triggers_at_min_steps_without_custom_distance_fn() -> None:
     engine = LanPaintEngine(
         _DummyModel(),
@@ -433,3 +552,64 @@ def test_semantic_stop_does_not_stop_while_ring_changes() -> None:
     # If ring changes were ignored, inpaint-average MSE would fall below the threshold
     # and the sampler would stop early. This test ensures we keep running the model
     # while the boundary is still changing.
+
+
+def test_semantic_stop_distance_fn_dispatch_variants() -> None:
+    # 1. Standard 3-arg
+    def dist3(p, c, ctx):
+        dist3.called = True
+        return 0.0
+
+    dist3.called = False
+
+    # 2. 3-arg with different name
+    def dist3_alt(p, c, context):
+        dist3_alt.called = True
+        return 0.0
+
+    dist3_alt.called = False
+
+    # 3. 2-arg
+    def dist2(p, c):
+        dist2.called = True
+        return 0.0
+
+    dist2.called = False
+
+    # 4. Keyword-only ctx
+    def dist_kw(p, c, *, ctx):
+        dist_kw.called = True
+        return 0.0
+
+    dist_kw.called = False
+
+    # 5. Varargs
+    def dist_varargs(p, c, *args):
+        dist_varargs.called = True
+        return 0.0
+
+    dist_varargs.called = False
+
+    # 6. Varkwargs
+    def dist_varkw(p, c, **kwargs):
+        dist_varkw.called = True
+        assert "ctx" in kwargs
+        return 0.0
+
+    dist_varkw.called = False
+
+    variants = [dist3, dist3_alt, dist2, dist_kw, dist_varargs, dist_varkw]
+
+    for fn in variants:
+        engine = LanPaintEngine(_DummyModel(), NSteps=2, Friction=15.0, Lambda=1.0, Beta=1.0, StepSize=0.2)
+        model_options = {
+            "lanpaint_semantic_stop": {
+                "threshold": 1e-6,
+                "min_steps": 1,
+                "patience": 1,
+                "distance_fn": fn,
+            }
+        }
+        x, latent_image, noise, sigma, latent_mask, current_times = _inputs()
+        engine(x, latent_image, noise, sigma, latent_mask, current_times, model_options=model_options, seed=0, n_steps=2)
+        assert fn.called, f"Function {fn.__name__} was not called"

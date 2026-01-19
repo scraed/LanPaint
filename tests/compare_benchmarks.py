@@ -4,6 +4,7 @@ import argparse
 import json
 import math
 import os
+import warnings
 from pathlib import Path
 
 
@@ -100,7 +101,8 @@ def main() -> None:
                 try:
                     b_val = float(b_row[args.case_metric])
                     c_val = float(c_row[args.case_metric])
-                except Exception:
+                except Exception as e:
+                    warnings.warn(f"Skipping case {case_id} due to error: {e}")
                     continue
                 b_vals.append(b_val)
                 c_vals.append(c_val)

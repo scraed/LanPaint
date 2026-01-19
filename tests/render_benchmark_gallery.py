@@ -1,5 +1,6 @@
 import argparse
 import json
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -80,7 +81,8 @@ def main() -> None:
         try:
             b_val = float(b_cases[case_id][args.metric])
             c_val = float(c_cases[case_id][args.metric])
-        except Exception:
+        except Exception as e:
+            warnings.warn(f"Skipping case {case_id} due to error: {e}")
             continue
         deltas.append((c_val - b_val, case_id))
 

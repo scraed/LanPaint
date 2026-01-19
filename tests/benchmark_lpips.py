@@ -9,6 +9,7 @@ import argparse
 import json
 import sys
 import time
+import warnings
 from pathlib import Path
 
 import torch
@@ -87,8 +88,8 @@ def _load_images(
     if shuffle:
         try:
             ds = ds.shuffle(seed=seed, buffer_size=shuffle_buffer)
-        except Exception:
-            pass
+        except Exception as e:
+            warnings.warn(f"Failed to shuffle streaming dataset; continuing without shuffle: {e}")
 
     images: list[torch.Tensor] = []
     for idx, item in enumerate(ds):
