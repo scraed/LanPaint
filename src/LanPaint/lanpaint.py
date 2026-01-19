@@ -1,4 +1,5 @@
 import torch
+from torch.nn import functional as F
 from .utils import StochasticHarmonicOscillator
 from functools import partial
 import inspect
@@ -72,6 +73,7 @@ class LanPaint():
         patience = int(self.early_stop_patience)
         min_steps = 1
         distance_fn = self.early_stop_hook
+        # distance_fn contract: return None (use default metric) or a scalar (Python number / 0-d (1-element) torch.Tensor)
 
         if isinstance(semantic_stop, dict):
             threshold = float(semantic_stop.get("threshold", threshold))
@@ -113,8 +115,6 @@ class LanPaint():
 
                 inpaint_weight = (1 - latent_mask).to(dtype=torch.float32)
                 if latent_mask.dim() == 4:
-                    from torch.nn import functional as F
-
                     mask_f = latent_mask.to(dtype=torch.float32)
                     dilated = F.max_pool2d(
                         mask_f,
@@ -158,15 +158,10 @@ class LanPaint():
                             try:
                                 return distance_fn(p, c, ctx)
                             except TypeError as e:
-                                msg = str(e)
-                                if (
-                                    "positional argument" in msg
-                                    or "positional arguments" in msg
-                                    or "required positional" in msg
-                                    or ("takes" in msg and "given" in msg)
-                                ):
-                                    return distance_fn(c, p)
-                                raise
+                                tb = e.__traceback__
+                                if tb is not None and tb.tb_frame.f_code is not fallback_wrapper.__code__:
+                                    raise
+                                return distance_fn(c, p)
 
                         dist_wrapper = fallback_wrapper
 
@@ -211,6 +206,13 @@ class LanPaint():
 
                 if dist_wrapper is not None:
                     dist = dist_wrapper(x_t_prev, x_t, ctx)
+                    if dist is not None:
+                        if isinstance(dist, torch.Tensor):
+                            if dist.numel() != 1:
+                                raise TypeError("distance_fn must return None or a scalar / 0-d (1-element) tensor")
+                            dist = float(dist.item())
+                        else:
+                            dist = float(dist)
                     custom_dist = dist is not None
 
                 if dist is None:

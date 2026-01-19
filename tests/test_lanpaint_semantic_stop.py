@@ -203,6 +203,109 @@ def test_semantic_stop_distance_fn_accepts_kw_only_ctx() -> None:
     assert calls["distance"] == 3
 
 
+def test_semantic_stop_distance_fn_accepts_scalar_tensor_return() -> None:
+    engine = LanPaintEngine(
+        _DummyModel(),
+        NSteps=10,
+        Friction=15.0,
+        Lambda=1.0,
+        Beta=1.0,
+        StepSize=0.2,
+    )
+
+    calls = {"langevin": 0, "distance": 0}
+
+    def fake_langevin(x_t, score, mask, step_size, current_times, sigma_x=1, sigma_y=0, args=None):  # type: ignore[no-untyped-def]
+        calls["langevin"] += 1
+        return x_t, args
+
+    def distance_fn(prev_x, cur_x, ctx):  # type: ignore[no-untyped-def]
+        calls["distance"] += 1
+        return torch.tensor(0.0)
+
+    engine.langevin_dynamics = fake_langevin  # type: ignore[method-assign]
+
+    model_options = {
+        "lanpaint_semantic_stop": {
+            "threshold": 1e-6,
+            "min_steps": 3,
+            "patience": 1,
+            "distance_fn": distance_fn,
+        }
+    }
+
+    x, latent_image, noise, sigma, latent_mask, current_times = _inputs()
+    engine(x, latent_image, noise, sigma, latent_mask, current_times, model_options=model_options, seed=0, n_steps=10)
+
+    assert calls["langevin"] == 3
+    assert calls["distance"] == 3
+
+
+def test_semantic_stop_distance_fn_rejects_multi_element_tensor_return() -> None:
+    engine = LanPaintEngine(
+        _DummyModel(),
+        NSteps=10,
+        Friction=15.0,
+        Lambda=1.0,
+        Beta=1.0,
+        StepSize=0.2,
+    )
+
+    def distance_fn(prev_x, cur_x, ctx):  # type: ignore[no-untyped-def]
+        return torch.tensor([0.0, 0.0])
+
+    model_options = {
+        "lanpaint_semantic_stop": {
+            "threshold": 1e-6,
+            "min_steps": 3,
+            "patience": 1,
+            "distance_fn": distance_fn,
+        }
+    }
+
+    x, latent_image, noise, sigma, latent_mask, current_times = _inputs()
+
+    try:
+        engine(x, latent_image, noise, sigma, latent_mask, current_times, model_options=model_options, seed=0, n_steps=10)
+    except TypeError:
+        return
+    raise AssertionError("expected TypeError for multi-element tensor distance")
+
+
+def test_semantic_stop_fallback_wrapper_does_not_swallow_internal_typeerror() -> None:
+    engine = LanPaintEngine(
+        _DummyModel(),
+        NSteps=10,
+        Friction=15.0,
+        Lambda=1.0,
+        Beta=1.0,
+        StepSize=0.2,
+    )
+
+    class DistanceFn:  # type: ignore[no-untyped-def]
+        __signature__ = "broken"
+
+        def __call__(self, prev_x, cur_x, ctx):
+            raise TypeError("internal")
+
+    model_options = {
+        "lanpaint_semantic_stop": {
+            "threshold": 1e-6,
+            "min_steps": 3,
+            "patience": 1,
+            "distance_fn": DistanceFn(),
+        }
+    }
+
+    x, latent_image, noise, sigma, latent_mask, current_times = _inputs()
+
+    try:
+        engine(x, latent_image, noise, sigma, latent_mask, current_times, model_options=model_options, seed=0, n_steps=10)
+    except TypeError:
+        return
+    raise AssertionError("expected TypeError from distance_fn to propagate")
+
+
 def test_default_semantic_stop_triggers_at_min_steps_without_custom_distance_fn() -> None:
     engine = LanPaintEngine(
         _DummyModel(),
