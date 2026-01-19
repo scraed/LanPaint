@@ -1,6 +1,8 @@
 import torch
 from unittest.mock import MagicMock, patch
 from src.LanPaint.lanpaint import LanPaint
+
+
 def test_langevin_dynamics_fallback_on_nan() -> None:
     """Test that langevin_dynamics falls back to overdamped dynamics if damped dynamics produces NaNs."""
     torch.manual_seed(0)
@@ -26,13 +28,16 @@ def test_langevin_dynamics_fallback_on_nan() -> None:
         mock_instance.dynamics.return_value = (nan_tensor, nan_tensor)
         # Execute langevin_dynamics
         # This should try run_damped -> get NaNs -> raise ValueError -> catch -> run_overdamped
-        x_out, (v_out, C_out) = lp.langevin_dynamics(x_t, score, mask, step_size, current_times, sigma_y=1.0)
+        x_out, args_out = lp.langevin_dynamics(x_t, score, mask, step_size, current_times, sigma_y=1.0)
+        v_out = args_out[0]
         # Verify that SHO was initialized and dynamics called
         MockSHO.assert_called()
         mock_instance.dynamics.assert_called()
         # Verify result is finite (indicating fallback to overdamped logic was successful)
         assert torch.isfinite(x_out).all(), "Output contains NaNs, fallback failed"
         assert v_out is None or torch.isfinite(v_out).all()
+
+
 def test_langevin_dynamics_fallback_on_exception() -> None:
     """Test that langevin_dynamics falls back to overdamped dynamics if damped dynamics raises Exception."""
     torch.manual_seed(0)
@@ -47,5 +52,7 @@ def test_langevin_dynamics_fallback_on_exception() -> None:
         mock_instance = MockSHO.return_value
         # Configure dynamics to raise Exception
         mock_instance.dynamics.side_effect = RuntimeError("Simulation exploded")
-        x_out, (v_out, C_out) = lp.langevin_dynamics(x_t, score, mask, step_size, current_times, sigma_y=1.0)
+        x_out, args_out = lp.langevin_dynamics(x_t, score, mask, step_size, current_times, sigma_y=1.0)
+        v_out = args_out[0]
         assert torch.isfinite(x_out).all()
+        assert v_out is None or torch.isfinite(v_out).all()
