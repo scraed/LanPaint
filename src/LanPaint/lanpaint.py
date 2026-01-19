@@ -1,7 +1,6 @@
 import torch
 from .utils import StochasticHarmonicOscillator
 from functools import partial
-import torch.nn.functional as F
 
 class LanPaint():
     def __init__(self, Model, NSteps, Friction, Lambda, Beta, StepSize, IS_FLUX = False, IS_FLOW = False, EarlyStopThreshold = 0.0, EarlyStopPatience = 1, EarlyStopHook = None):
@@ -103,6 +102,8 @@ class LanPaint():
 
                 inpaint_weight = (1 - latent_mask).to(dtype=torch.float32)
                 if latent_mask.dim() == 4:
+                    from torch.nn import functional as F
+
                     mask_f = latent_mask.to(dtype=torch.float32)
                     dilated = F.max_pool2d(mask_f, kernel_size=11, stride=1, padding=5)
                     ring_weight = (dilated - mask_f).clamp(min=0.0, max=1.0) * inpaint_weight

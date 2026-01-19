@@ -11,7 +11,6 @@ import sys
 import time
 from pathlib import Path
 
-import numpy as np
 import torch
 
 
@@ -81,6 +80,7 @@ def _load_images(
     shuffle_buffer: int,
     shuffle: bool,
 ) -> list[torch.Tensor]:
+    import numpy as np
     from datasets import load_dataset
 
     ds = load_dataset(dataset, split=split, streaming=True)
@@ -156,7 +156,7 @@ def _run_dummy_bench(  # type: ignore[no-untyped-def]
         dist = lpips_fn(output, img)
         scores.append(float(dist.item()))
 
-    return float(np.mean(scores))
+    return float(sum(scores) / max(1, len(scores)))
 
 
 def _tensor_to_pil_rgb(image: torch.Tensor):  # type: ignore[no-untyped-def]
@@ -483,7 +483,7 @@ def _run_guided_diffusion_e2e_bench(  # type: ignore[no-untyped-def]
             "inner_steps_executed_by_outer_step_mean": [float(v / n_images) for v in inner_steps_executed_by_outer_step],
             "inner_steps_requested_by_outer_step_mean": [float(v / n_images) for v in inner_steps_requested_by_outer_step],
         }
-    return float(np.mean(scores)), stats, cases
+    return float(sum(scores) / max(1, len(scores))), stats, cases
 
 
 def main() -> None:
@@ -552,7 +552,6 @@ def main() -> None:
     from LanPaint.lanpaint import LanPaint as LanPaintEngine
 
     torch.manual_seed(args.seed)
-    np.random.seed(args.seed)
 
     images = _load_images(
         dataset=args.dataset,
