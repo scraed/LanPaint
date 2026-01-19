@@ -1,5 +1,9 @@
 import torch
-from torch.nn import functional as F
+try:
+    from torch.nn import functional as F
+except Exception:
+    # Some environments (e.g. node graph validation) may not ship with a full torch package.
+    F = None  # type: ignore[assignment]
 from .utils import StochasticHarmonicOscillator
 from functools import partial
 import inspect
@@ -115,8 +119,12 @@ class LanPaint():
 
                 inpaint_weight = (1 - latent_mask).to(dtype=torch.float32)
                 if latent_mask.dim() == 4:
+                    F_local = F
+                    if F_local is None:
+                        from torch.nn import functional as F_local
+
                     mask_f = latent_mask.to(dtype=torch.float32)
-                    dilated = F.max_pool2d(
+                    dilated = F_local.max_pool2d(
                         mask_f,
                         kernel_size=RING_KERNEL_SIZE,
                         stride=1,
