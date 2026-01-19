@@ -38,10 +38,14 @@ def test_semantic_stop_triggers_deterministically_at_min_steps() -> None:
         StepSize=0.2,
     )
 
-    calls = {"langevin": 0, "distance": 0}
+    calls = {"langevin": 0, "distance": 0, "with_score": 0, "without_score": 0}
 
     def fake_langevin(x_t, score, mask, step_size, current_times, sigma_x=1, sigma_y=0, args=None):  # type: ignore[no-untyped-def]
         calls["langevin"] += 1
+        if score is None:
+            calls["without_score"] += 1
+        else:
+            calls["with_score"] += 1
         return x_t, args
 
     def distance_fn(prev_x, cur_x, ctx):  # type: ignore[no-untyped-def]
@@ -73,7 +77,9 @@ def test_semantic_stop_triggers_deterministically_at_min_steps() -> None:
         n_steps=10,
     )
 
-    assert calls["langevin"] == 3
+    assert calls["langevin"] == 10
+    assert calls["with_score"] == 3
+    assert calls["without_score"] == 7
     assert calls["distance"] == 3
 
 
@@ -87,10 +93,14 @@ def test_default_semantic_stop_triggers_at_min_steps_without_custom_distance_fn(
         StepSize=0.2,
     )
 
-    calls = {"langevin": 0}
+    calls = {"langevin": 0, "with_score": 0, "without_score": 0}
 
     def fake_langevin(x_t, score, mask, step_size, current_times, sigma_x=1, sigma_y=0, args=None):  # type: ignore[no-untyped-def]
         calls["langevin"] += 1
+        if score is None:
+            calls["without_score"] += 1
+        else:
+            calls["with_score"] += 1
         return x_t, args
 
     engine.langevin_dynamics = fake_langevin  # type: ignore[method-assign]
@@ -106,7 +116,9 @@ def test_default_semantic_stop_triggers_at_min_steps_without_custom_distance_fn(
     x, latent_image, noise, sigma, latent_mask, current_times = _inputs()
     engine(x, latent_image, noise, sigma, latent_mask, current_times, model_options=model_options, seed=0, n_steps=10)
 
-    assert calls["langevin"] == 3
+    assert calls["langevin"] == 10
+    assert calls["with_score"] == 3
+    assert calls["without_score"] == 7
 
 
 def test_semantic_stop_is_disabled_for_very_late_steps() -> None:
@@ -119,10 +131,14 @@ def test_semantic_stop_is_disabled_for_very_late_steps() -> None:
         StepSize=0.2,
     )
 
-    calls = {"langevin": 0}
+    calls = {"langevin": 0, "with_score": 0, "without_score": 0}
 
     def fake_langevin(x_t, score, mask, step_size, current_times, sigma_x=1, sigma_y=0, args=None):  # type: ignore[no-untyped-def]
         calls["langevin"] += 1
+        if score is None:
+            calls["without_score"] += 1
+        else:
+            calls["with_score"] += 1
         return x_t, args
 
     engine.langevin_dynamics = fake_langevin  # type: ignore[method-assign]
@@ -137,20 +153,25 @@ def test_semantic_stop_is_disabled_for_very_late_steps() -> None:
 
     x, latent_image, noise, sigma, latent_mask, current_times = _inputs()
 
-    # Use a constant per-step update so dist is deterministic, then assert that the
-    # effective threshold becomes stricter as abt -> 1 (so we don't stop too early
-    # in the low-noise regime).
+    # Use a constant per-step x_t update (simulating Langevin noise) while keeping
+    # an x0-like tensor perfectly stable. Early-stop should ignore the x_t noise.
     delta = 0.01
 
     def fake_langevin_delta(x_t, score, mask, step_size, current_times, sigma_x=1, sigma_y=0, args=None):  # type: ignore[no-untyped-def]
         calls["langevin"] += 1
-        return x_t + delta, args
+        if score is None:
+            calls["without_score"] += 1
+        else:
+            calls["with_score"] += 1
+        prev_x0 = None if args is None else args[2]
+        x0 = x_t.detach().clone() * 0 if prev_x0 is None else prev_x0
+        return x_t + delta, (None, None, x0)
 
     engine.langevin_dynamics = fake_langevin_delta  # type: ignore[method-assign]
 
     model_options = {
         "lanpaint_semantic_stop": {
-            "threshold": delta * delta,
+            "threshold": 1e-12,
             "min_steps": 2,
             "patience": 1,
         }
@@ -169,9 +190,13 @@ def test_semantic_stop_is_disabled_for_very_late_steps() -> None:
         seed=0,
         n_steps=10,
     )
-    assert calls["langevin"] == 2
+    assert calls["langevin"] == 10
+    assert calls["with_score"] == 3
+    assert calls["without_score"] == 7
 
     calls["langevin"] = 0
+    calls["with_score"] = 0
+    calls["without_score"] = 0
     current_times = (sigma, torch.tensor([0.99]), torch.tensor([0.0]))
     engine(
         x,
@@ -185,6 +210,8 @@ def test_semantic_stop_is_disabled_for_very_late_steps() -> None:
         n_steps=10,
     )
     assert calls["langevin"] == 10
+    assert calls["with_score"] == 4
+    assert calls["without_score"] == 6
 
 
 def test_default_semantic_stop_is_mask_normalized() -> None:
@@ -197,12 +224,19 @@ def test_default_semantic_stop_is_mask_normalized() -> None:
         StepSize=0.2,
     )
 
-    calls = {"langevin": 0}
+    calls = {"langevin": 0, "with_score": 0, "without_score": 0}
     delta = 0.01
 
     def fake_langevin_delta(x_t, score, mask, step_size, current_times, sigma_x=1, sigma_y=0, args=None):  # type: ignore[no-untyped-def]
         calls["langevin"] += 1
-        return x_t + delta, args
+        if score is None:
+            calls["without_score"] += 1
+        else:
+            calls["with_score"] += 1
+        prev_x0 = None if args is None else args[2]
+        x0 = x_t.detach().clone() * 0 if prev_x0 is None else prev_x0
+        x0 = x0 + delta * (1 - mask)
+        return x_t, (None, None, x0)
 
     engine.langevin_dynamics = fake_langevin_delta  # type: ignore[method-assign]
 
@@ -223,6 +257,8 @@ def test_default_semantic_stop_is_mask_normalized() -> None:
     small_hole_mask[:, :, 3:5, 3:5] = 0.0
 
     calls["langevin"] = 0
+    calls["with_score"] = 0
+    calls["without_score"] = 0
     engine(
         x,
         latent_image,
@@ -235,12 +271,16 @@ def test_default_semantic_stop_is_mask_normalized() -> None:
         n_steps=10,
     )
     assert calls["langevin"] == 10
+    assert calls["with_score"] == 10
+    assert calls["without_score"] == 0
 
     # Larger hole (unknown region).
     large_hole_mask = torch.ones_like(latent_mask)
     large_hole_mask[:, :, 1:7, 1:7] = 0.0
 
     calls["langevin"] = 0
+    calls["with_score"] = 0
+    calls["without_score"] = 0
     engine(
         x,
         latent_image,
@@ -253,3 +293,5 @@ def test_default_semantic_stop_is_mask_normalized() -> None:
         n_steps=10,
     )
     assert calls["langevin"] == 10
+    assert calls["with_score"] == 10
+    assert calls["without_score"] == 0

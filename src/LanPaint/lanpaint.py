@@ -1,6 +1,7 @@
 import torch
 from .utils import StochasticHarmonicOscillator
 from functools import partial
+import torch.nn.functional as F
 
 class LanPaint():
     def __init__(self, Model, NSteps, Friction, Lambda, Beta, StepSize, IS_FLUX = False, IS_FLOW = False, EarlyStopThreshold = 0.0, EarlyStopPatience = 1, EarlyStopHook = None):
@@ -73,21 +74,39 @@ class LanPaint():
         min_steps = max(1, min_steps)
         patience = max(1, patience)
         patience_counter = 0
+        patience_eff = patience
+        threshold_eff = threshold
+        inpaint_weight = None
+        ring_weight = None
 
         if enabled_early_stop:
             try:
                 abt_val = float(torch.mean(abt).item())
             except Exception:
                 abt_val = 0.0
+            patience_eff = patience + 1 + (1 if abt_val > 0.9 else 0)
+            threshold_scale = max(0.1, (1.0 - abt_val) ** 0.5)
+            threshold_eff = threshold * threshold_scale
 
+            inpaint_weight = (1 - latent_mask).to(dtype=torch.float32)
+            if latent_mask.dim() == 4:
+                mask_f = latent_mask.to(dtype=torch.float32)
+                dilated = F.max_pool2d(mask_f, kernel_size=11, stride=1, padding=5)
+                ring_weight = (dilated - mask_f).clamp(min=0.0, max=1.0) * inpaint_weight
+
+        frozen = False
         for i in range(n_steps):
-            score_func = partial( self.score_model, y = self.latent_image, mask = latent_mask, abt = self.add_none_dims(abt), sigma = self.add_none_dims(VE_Sigma), tflow = self.add_none_dims(Flow_t), model_options = model_options, seed = seed )
+            score_func = None
+            if not frozen:
+                score_func = partial( self.score_model, y = self.latent_image, mask = latent_mask, abt = self.add_none_dims(abt), sigma = self.add_none_dims(VE_Sigma), tflow = self.add_none_dims(Flow_t), model_options = model_options, seed = seed )
 
-            x_t_prev = x_t.detach().clone() if enabled_early_stop else None
+            prev_args = args
+            x_t_prev = x_t.detach() if enabled_early_stop and (not frozen) and callable(distance_fn) else None
+            x_t_before = x_t if enabled_early_stop and (not frozen) else None
 
             x_t, args = self.langevin_dynamics(x_t, score_func , latent_mask, step_size , current_times, sigma_x = self.add_none_dims(self.sigma_x(abt)), sigma_y = self.add_none_dims(self.sigma_y(abt)), args = args)  
 
-            if enabled_early_stop and x_t_prev is not None:
+            if enabled_early_stop and (not frozen) and x_t_before is not None:
                 ctx = {
                     "step": i,
                     "steps_done": i + 1,
@@ -106,24 +125,35 @@ class LanPaint():
                         dist = distance_fn(x_t, x_t_prev)
 
                 if dist is None:
-                    # Measure masked per-element MSE (normalized by mask area), in fp32 to avoid fp16 quantization.
-                    inpaint = (1 - latent_mask).to(dtype=torch.float32)
-                    diff = (x_t.to(dtype=torch.float32) - x_t_prev.to(dtype=torch.float32)) * inpaint
-                    denom = torch.sum(inpaint) + 1e-12
-                    dist = (torch.sum(diff**2) / denom).item()
+                    x0_prev = None
+                    x0_cur = None
+                    if isinstance(prev_args, tuple) and len(prev_args) >= 3:
+                        x0_prev = prev_args[2]
+                    if isinstance(args, tuple) and len(args) >= 3:
+                        x0_cur = args[2]
 
-                    # Normalize by (1 - abt) because Langevin noise variance scales linearly with (1 - abt).
-                    # This prevents early stopping just because the noise amplitude shrinks at the tail.
-                    scale = max(1.0 - abt_val, 1e-6)
-                    dist = dist / scale
+                    if x0_prev is not None and x0_cur is not None:
+                        inpaint = inpaint_weight if inpaint_weight is not None else (1 - latent_mask).to(dtype=torch.float32)
+                        diff_sq = (x0_cur.to(dtype=torch.float32) - x0_prev.to(dtype=torch.float32)) ** 2
+                        denom = torch.sum(inpaint) + 1e-12
+                        dist = (torch.sum(diff_sq * inpaint) / denom).item()
+                        if ring_weight is not None:
+                            ring_denom = torch.sum(ring_weight) + 1e-12
+                            dist_ring = (torch.sum(diff_sq * ring_weight) / ring_denom).item()
+                            dist = max(float(dist), float(dist_ring))
+                    else:
+                        inpaint = inpaint_weight if inpaint_weight is not None else (1 - latent_mask).to(dtype=torch.float32)
+                        diff_sq = (x_t.to(dtype=torch.float32) - x_t_before.to(dtype=torch.float32)) ** 2
+                        denom = torch.sum(inpaint) + 1e-12
+                        dist = (torch.sum(diff_sq * inpaint) / denom).item()
 
-                if float(dist) <= threshold:
+                if float(dist) <= (threshold if callable(distance_fn) else threshold_eff):
                     patience_counter += 1
                 else:
                     patience_counter = 0
 
-                if (i + 1) >= min_steps and patience_counter >= patience:
-                    break
+                if (i + 1) >= min_steps and patience_counter >= patience_eff:
+                    frozen = True
 
         if IS_FLUX or IS_FLOW:
             x = x_t / ( self.add_none_dims(abt)**0.5 + (1-self.add_none_dims(abt))**0.5 )
@@ -173,11 +203,6 @@ class LanPaint():
         dt = dtx * (1-mask) + dty * mask
         Gamma = Gamma_x * (1-mask) + Gamma_y * mask
 
-
-        def Coef_C(x_t):
-            x0 = self.x0_evalutation(x_t, score, sigma, args)
-            C = (abt**0.5 * x0  - x_t )/ (1-abt) + A * x_t
-            return C
         def advance_time(x_t, v, dt, Gamma, A, C, D):
             dtype = x_t.dtype
             with torch.autocast(device_type=x_t.device.type, dtype=torch.float32):
@@ -186,6 +211,23 @@ class LanPaint():
             x_t = x_t.to(dtype)
             v = v.to(dtype)
             return x_t, v
+
+        if score is None:
+            if not (isinstance(args, tuple) and len(args) >= 3):
+                return x_t, args
+            v = args[0]
+            C = args[1]
+            x0 = args[2]
+            x_t, v = advance_time(x_t, v, dt/2, Gamma, A, C, D)
+            C_new = (abt**0.5 * x0  - x_t )/ (1-abt) + A * x_t
+            v = v + Gamma**0.5 * ( C_new - C) *dt
+            x_t, v = advance_time(x_t, v, dt/2, Gamma, A, C_new, D)
+            return x_t, (v, C_new, x0)
+
+        def Coef_C(x_t):
+            x0 = self.x0_evalutation(x_t, score, sigma, args)
+            C = (abt**0.5 * x0  - x_t )/ (1-abt) + A * x_t
+            return C, x0
 
         def advance_time_overdamped(x_t, dt, A, C, D):
             """
@@ -214,32 +256,32 @@ class LanPaint():
         def run_damped(x_t, args):
             if args is None:
                 v = None
-                C = Coef_C(x_t)
+                C, x0 = Coef_C(x_t)
                 x_t, v = advance_time(x_t, v, dt, Gamma, A, C, D)
             else:
-                v, C = args
+                v, C, _ = args
                 x_t, v = advance_time(x_t, v, dt/2, Gamma, A, C, D)
-                C_new = Coef_C(x_t)
+                C_new, x0 = Coef_C(x_t)
                 v = v + Gamma**0.5 * ( C_new - C) *dt
                 x_t, v = advance_time(x_t, v, dt/2, Gamma, A, C, D)
                 C = C_new
-            return x_t, (v, C)
+            return x_t, (v, C, x0)
 
         def run_overdamped(x_t, args):
             if args is None:
-                C = Coef_C(x_t)
+                C, x0 = Coef_C(x_t)
                 x_t = advance_time_overdamped(x_t, dt, A, C, D)
             else:
-                _, C = args
+                _, C, _ = args
                 x_t = advance_time_overdamped(x_t, dt / 2, A, C, D)
-                C_new = Coef_C(x_t)
+                C_new, x0 = Coef_C(x_t)
                 x_t = x_t + (C_new - C) * dt
                 x_t = advance_time_overdamped(x_t, dt / 2, A, C, D)
                 C = C_new
-            return x_t, (None, C)
+            return x_t, (None, C, x0)
 
         try:
-            x_t_next, (v_next, C_next) = run_damped(x_t, args)
+            x_t_next, (v_next, C_next, x0) = run_damped(x_t, args)
 
             if torch.isnan(x_t_next).any() or torch.isnan(v_next).any():
                 raise ValueError("NaN detected")
@@ -249,9 +291,9 @@ class LanPaint():
             C = C_next
 
         except Exception:
-            x_t, (v, C) = run_overdamped(x_t, args)
+            x_t, (v, C, x0) = run_overdamped(x_t, args)
 
-        return x_t, (v, C)
+        return x_t, (v, C, x0)
 
     def prepare_step_size(self, current_times, step_size, sigma_x, sigma_y):
         # -------------------------------------------------------------------------
