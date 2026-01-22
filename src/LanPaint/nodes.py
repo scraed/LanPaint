@@ -12,6 +12,11 @@ from .lanpaint import LanPaint
 from comfy.model_base import WAN22
 import comfyui_version 
 
+def _version_tuple(value):
+    return tuple(int(part) if part.isdigit() else 0 for part in value.split("."))
+
+COMFYUI_VERSION_060_OR_NEWER = _version_tuple(comfyui_version.__version__) >= (0, 6, 0)
+
 def reshape_mask(input_mask, output_shape,video_inpainting=False):
     dims = len(output_shape) - 2
     print('output shape',output_shape)
@@ -28,7 +33,7 @@ def reshape_mask(input_mask, output_shape,video_inpainting=False):
 
     # Handle 5D output shape (B, C, F, H, W) by ensuring input is 5D
     if len(output_shape) == 5 and input_mask.ndim == 4:
-        if comfyui_version.__version__ >= "0.6.0":
+        if COMFYUI_VERSION_060_OR_NEWER:
             input_mask = input_mask.unsqueeze(2)  # (B, C, 1, H, W)
 
     # Handle video case with temporal dimension
@@ -41,7 +46,7 @@ def reshape_mask(input_mask, output_shape,video_inpainting=False):
         # First reshape input_mask to have proper dimensions for video processing
         # Assume input is (frames, channels, height, width) -> (1, channels, frames, height, width)
         ## if comfy version < 0.6.0
-        if comfyui_version.__version__ < "0.6.0":
+        if not COMFYUI_VERSION_060_OR_NEWER:
             input_mask = input_mask.permute(1, 0, 2, 3).unsqueeze(0)
         print('Video case - input_mask after reshaping:', input_mask.shape)
         # Ensure we have the correct 5D shape: (batch, channels, frames, height, width)
@@ -65,7 +70,7 @@ def reshape_mask(input_mask, output_shape,video_inpainting=False):
         # Handle batch dimension
         mask = repeat_to_batch_size(mask, output_shape[0])
     else:  # Original 2D image case
-        if comfyui_version.__version__ < "0.6.0":
+        if not COMFYUI_VERSION_060_OR_NEWER:
             mask = torch.nn.functional.interpolate(input_mask, size=output_shape[-2:], mode=scale_mode)
         else:
             mask = torch.nn.functional.interpolate(input_mask, size=output_shape[2:], mode=scale_mode)
