@@ -143,6 +143,10 @@ class LanPaint():
         dt = dtx * (1-mask) + dty * mask
         Gamma = Gamma_x * (1-mask) + Gamma_y * mask
 
+        def Coef_C(x_t):
+            x0 = self.x0_evalutation(x_t, score, sigma, args)
+            C = (abt**0.5 * x0  - x_t )/ (1-abt) + A * x_t
+            return C, x0
         def advance_time(x_t, v, dt, Gamma, A, C, D):
             dtype = x_t.dtype
             with torch.autocast(device_type=x_t.device.type, dtype=torch.float32):
@@ -151,11 +155,6 @@ class LanPaint():
             x_t = x_t.to(dtype)
             v = v.to(dtype)
             return x_t, v
-
-        def Coef_C(x_t):
-            x0 = self.x0_evalutation(x_t, score, sigma, args)
-            C = (abt**0.5 * x0  - x_t )/ (1-abt) + A * x_t
-            return C, x0
 
         def advance_time_overdamped(x_t, dt, A, C, D):
             """
