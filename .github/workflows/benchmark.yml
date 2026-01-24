@@ -35,10 +35,6 @@ on:
         description: "Semantic early-stop patience (head_on run)"
         required: true
         default: "2"
-      semantic_min_steps:
-        description: "Semantic early-stop minimum steps (head_on run)"
-        required: true
-        default: "2"
       min_seconds:
         description: "Fail if a benchmark runtime is below this (0 to disable)"
         required: true
@@ -191,7 +187,6 @@ jobs:
             --min-seconds "${{ inputs.min_seconds }}" \
             --semantic-threshold "${{ inputs.semantic_threshold }}" \
             --semantic-patience "${{ inputs.semantic_patience }}" \
-            --semantic-min-steps "${{ inputs.semantic_min_steps }}" \
             --save-images-dir head_on_images
 
       - name: Compare baseline vs head_off

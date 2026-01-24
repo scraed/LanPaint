@@ -525,7 +525,6 @@ def main() -> None:
         help="Enable LanPaint semantic early-stop if > 0 (guided_diffusion_e2e)",
     )
     parser.add_argument("--semantic-patience", type=int, default=1, help="Semantic early-stop patience (guided_diffusion_e2e)")
-    parser.add_argument("--semantic-min-steps", type=int, default=1, help="Semantic early-stop min_steps (guided_diffusion_e2e)")
     parser.add_argument("--report-earlystop", action="store_true", help="Include early-stop stats in output JSON (guided_diffusion_e2e)")
     parser.add_argument("--trace-inner", type=Path, default=None, help="If set, write per-inner-step semantic trace JSON (guided_diffusion_e2e)")
     parser.add_argument("--save-images-dir", type=Path, default=None, help="If set, save per-case images for manual review")
@@ -539,8 +538,6 @@ def main() -> None:
         raise SystemExit("--shuffle-buffer must be > 0")
     if args.semantic_patience <= 0:
         raise SystemExit("--semantic-patience must be > 0")
-    if args.semantic_min_steps <= 0:
-        raise SystemExit("--semantic-min-steps must be > 0")
     if args.outer_cutoff_steps < 0:
         raise SystemExit("--outer-cutoff-steps must be >= 0")
 
@@ -584,7 +581,6 @@ def main() -> None:
             semantic_stop = {
                 "threshold": float(args.semantic_threshold),
                 "patience": int(args.semantic_patience),
-                "min_steps": int(args.semantic_min_steps),
             }
 
         semantic_trace = [] if args.trace_inner is not None else None
@@ -639,7 +635,6 @@ def main() -> None:
                     "device": device_str,
                     "semantic_threshold": args.semantic_threshold,
                     "semantic_patience": args.semantic_patience,
-                    "semantic_min_steps": args.semantic_min_steps,
                     "outer_cutoff_steps": args.outer_cutoff_steps,
                     "report_earlystop": bool(args.report_earlystop),
                     "trace_inner": str(args.trace_inner) if args.trace_inner is not None else None,

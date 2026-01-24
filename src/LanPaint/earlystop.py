@@ -2,20 +2,45 @@ import inspect
 from typing import Any, Callable, Optional
 
 import torch
-try:
-    from torch.nn import functional as F
-except Exception:
-    # Some environments (e.g. node graph validation) may not ship with a full torch package.
-    F = None  # type: ignore[assignment]
 
-# Early-stop constants
-STOP_THRESHOLD_MIN_ABT = 0.15
-STOP_THRESHOLD_MAX_ABT = 0.999
-PATIENCE_BOOST_LOW_ABT = 0.5
-PATIENCE_BOOST_HIGH_ABT = 0.9
-THRESHOLD_SCALE_MIN = 0.1
-RING_KERNEL_SIZE = 11
-RING_PADDING = 5
+
+def _clamp01(val: float) -> float:
+    if val <= 0.0:
+        return 0.0
+    if val >= 1.0:
+        return 1.0
+    return val
+
+
+def _abt_scale(abt_val: float) -> float:
+    """
+    Smooth, parameter-free scale based on outer-step noise level.
+
+    - 0 at abt=0/1 (disable at extreme noise / extreme tail)
+    - 1 at abt=0.5 (mid-schedule)
+    """
+    abt_val = _clamp01(abt_val)
+    return _clamp01(4.0 * abt_val * (1.0 - abt_val))
+
+
+def _boundary_weight(latent_mask: torch.Tensor, inpaint_weight: torch.Tensor) -> Optional[torch.Tensor]:
+    """
+    Return a 4-neighbor boundary weight: unknown pixels adjacent to known pixels.
+
+    This replaces the previous dilation-based "ring" (kernel/padding) and has no tunable hyperparameters.
+    """
+    if latent_mask.dim() != 4:
+        return None
+
+    known = latent_mask > 0.5
+    neighbor_known = torch.zeros_like(known)
+    neighbor_known[:, :, 1:, :] |= known[:, :, :-1, :]
+    neighbor_known[:, :, :-1, :] |= known[:, :, 1:, :]
+    neighbor_known[:, :, :, 1:] |= known[:, :, :, :-1]
+    neighbor_known[:, :, :, :-1] |= known[:, :, :, 1:]
+
+    boundary = (~known) & neighbor_known
+    return boundary.to(dtype=torch.float32) * inpaint_weight
 
 
 class LanPaintEarlyStopper:
@@ -40,20 +65,17 @@ class LanPaintEarlyStopper:
 
         threshold = float(default_threshold)
         patience = int(default_patience)
-        min_steps = 1
         distance_fn = default_distance_fn
         # distance_fn contract: return None (use default metric) or a scalar (Python number / 0-d (1-element) torch.Tensor)
 
         if isinstance(semantic_stop, dict):
             threshold = float(semantic_stop.get("threshold", threshold))
             patience = int(semantic_stop.get("patience", patience))
-            min_steps = int(semantic_stop.get("min_steps", min_steps))
             distance_fn = semantic_stop.get("distance_fn", distance_fn)
 
         enabled_early_stop = (threshold > 0.0) and (patience > 0)
-        min_steps = max(1, min_steps)
         patience = max(1, patience)
-        patience_eff = patience
+        patience_eff = patience + 1
         threshold_eff = threshold
         inpaint_weight = None
         ring_weight = None
@@ -66,35 +88,12 @@ class LanPaintEarlyStopper:
             except Exception:
                 abt_val = 0.0
 
-            # Skip semantic early-stop in extremely noisy steps (low abt) and
-            # at the extreme tail where even tiny changes can matter.
-            if abt_val < STOP_THRESHOLD_MIN_ABT or abt_val > STOP_THRESHOLD_MAX_ABT:
+            threshold_eff = threshold * _abt_scale(abt_val)
+            if threshold_eff <= 0.0:
                 enabled_early_stop = False
             else:
-                # More noise -> require more consecutive stable steps before stopping.
-                # This keeps early-stop conservative in mid-noise outer steps.
-                patience_eff = patience + 1
-                if abt_val < PATIENCE_BOOST_LOW_ABT:
-                    patience_eff += 1
-                if abt_val > PATIENCE_BOOST_HIGH_ABT:
-                    patience_eff += 1
-                threshold_scale = max(THRESHOLD_SCALE_MIN, (1.0 - abt_val) ** 0.5)
-                threshold_eff = threshold * threshold_scale
-
                 inpaint_weight = (1 - latent_mask).to(dtype=torch.float32)
-                if latent_mask.dim() == 4:
-                    F_local = F
-                    if F_local is None:
-                        from torch.nn import functional as F_local
-
-                    mask_f = latent_mask.to(dtype=torch.float32)
-                    dilated = F_local.max_pool2d(
-                        mask_f,
-                        kernel_size=RING_KERNEL_SIZE,
-                        stride=1,
-                        padding=RING_PADDING,
-                    )
-                    ring_weight = (dilated - mask_f).clamp(min=0.0, max=1.0) * inpaint_weight
+                ring_weight = _boundary_weight(latent_mask, inpaint_weight)
                 if isinstance(model_options, dict):
                     trace = model_options.get("lanpaint_semantic_trace")
 
@@ -115,7 +114,6 @@ class LanPaintEarlyStopper:
             threshold=threshold,
             threshold_eff=threshold_eff,
             patience_eff=patience_eff,
-            min_steps=min_steps,
             inpaint_weight=inpaint_weight,
             ring_weight=ring_weight,
             distance_fn=distance_fn,
@@ -133,7 +131,6 @@ class LanPaintEarlyStopper:
         threshold: float,
         threshold_eff: float,
         patience_eff: int,
-        min_steps: int,
         inpaint_weight: Optional[torch.Tensor],
         ring_weight: Optional[torch.Tensor],
         distance_fn: Optional[Callable[..., Any]] = None,
@@ -147,7 +144,6 @@ class LanPaintEarlyStopper:
         self.threshold = float(threshold)
         self.threshold_eff = float(threshold_eff)
         self.patience_eff = int(patience_eff)
-        self.min_steps = int(min_steps)
 
         self.inpaint_weight = inpaint_weight
         self.ring_weight = ring_weight
@@ -294,7 +290,7 @@ class LanPaintEarlyStopper:
             self.patience_counter = 0
             self.x0_anchor = None
 
-        should_stop = (i + 1) >= self.min_steps and self.patience_counter >= self.patience_eff
+        should_stop = self.patience_counter >= self.patience_eff
 
         if isinstance(self.trace, list):
             self.trace.append(
@@ -311,7 +307,6 @@ class LanPaintEarlyStopper:
                     "threshold_eff": float(self.threshold_eff),
                     "patience_counter": int(self.patience_counter),
                     "patience_eff": int(self.patience_eff),
-                    "min_steps": int(self.min_steps),
                     "abt": None if self.abt_val is None else float(self.abt_val),
                     "custom_dist": bool(custom_dist),
                     "stopped": bool(should_stop),
