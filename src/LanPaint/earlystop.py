@@ -85,7 +85,7 @@ class LanPaintEarlyStopper:
         if enabled_early_stop:
             try:
                 abt_val = float(torch.mean(abt).item())
-            except Exception:
+            except (TypeError, ValueError):
                 abt_val = 0.0
 
             threshold_eff = threshold * _abt_scale(abt_val)

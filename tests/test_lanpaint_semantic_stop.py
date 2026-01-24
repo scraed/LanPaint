@@ -669,6 +669,53 @@ def test_default_semantic_stop_is_mask_normalized() -> None:
     assert calls["without_score"] == 0
 
 
+def test_semantic_stop_drift_guard_prevents_premature_stop() -> None:
+    engine = LanPaintEngine(
+        _DummyModel(),
+        NSteps=10,
+        Friction=15.0,
+        Lambda=1.0,
+        Beta=1.0,
+        StepSize=0.2,
+    )
+
+    calls = {"langevin": 0, "with_score": 0, "without_score": 0}
+
+    threshold = 2e-5
+    delta_sq = 1e-5
+    delta = float(delta_sq**0.5)
+
+    def fake_langevin_drift(x_t, score, mask, step_size, current_times, sigma_x=1, sigma_y=0, args=None):  # type: ignore[no-untyped-def]
+        calls["langevin"] += 1
+        if score is None:
+            calls["without_score"] += 1
+        else:
+            calls["with_score"] += 1
+
+        step = float(calls["langevin"])
+        x0 = torch.zeros_like(x_t) + (step * delta)
+
+        # Ensure the first iteration does not look stable due to x_t noise metric.
+        return x_t + (1.0 if step <= 1 else 0.0), (None, None, x0)
+
+    engine.langevin_dynamics = fake_langevin_drift  # type: ignore[method-assign]
+
+    model_options = {
+        "lanpaint_semantic_stop": {
+            "threshold": threshold,
+            "patience": 3,
+        }
+    }
+
+    x, latent_image, noise, sigma, latent_mask, _ = _inputs()
+    current_times = (sigma, torch.tensor([0.5]), torch.tensor([0.0]))
+    engine(x, latent_image, noise, sigma, latent_mask, current_times, model_options=model_options, seed=0, n_steps=10)
+
+    assert calls["langevin"] == 10
+    assert calls["with_score"] == 10
+    assert calls["without_score"] == 0
+
+
 def test_semantic_stop_does_not_stop_while_boundary_changes() -> None:
     engine = LanPaintEngine(
         _DummyModel(),
