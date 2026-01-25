@@ -128,8 +128,12 @@ class LanPaint():
 
     def langevin_dynamics(self, x_t, score, mask, step_size, current_times, sigma_x=1, sigma_y=0, args=None):
         if args is not None and not isinstance(args, LangevinState):
-            if isinstance(args, tuple) and len(args) >= 3:
-                args = LangevinState(args[0], args[1], args[2])
+            if isinstance(args, tuple):
+                if len(args) == 2:
+                    # Backwards compat: older state was (v, C) without x0.
+                    args = LangevinState(args[0], args[1], None)
+                elif len(args) >= 3:
+                    args = LangevinState(args[0], args[1], args[2])
         # prepare the step size and time parameters
         with torch.autocast(device_type=x_t.device.type, dtype=torch.float32):
             step_sizes = self.prepare_step_size(current_times, step_size, sigma_x, sigma_y)
