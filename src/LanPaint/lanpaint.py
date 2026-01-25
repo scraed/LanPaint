@@ -74,7 +74,7 @@ class LanPaint():
 
             x_t, args = self.langevin_dynamics(x_t, score_func , latent_mask, step_size , current_times, sigma_x = self.add_none_dims(self.sigma_x(abt)), sigma_y = self.add_none_dims(self.sigma_y(abt)), args = args)  
 
-            if stopper is not None and x_t_before is not None:
+            if stopper is not None:
                 ctx = {
                     "step": i,
                     "steps_done": i + 1,
@@ -152,7 +152,7 @@ class LanPaint():
         Gamma = Gamma_x * (1-mask) + Gamma_y * mask
 
         def Coef_C(x_t):
-            x0 = self.x0_evalutation(x_t, score, sigma, args)
+            x0 = x_t + score(x_t)
             C = (abt**0.5 * x0  - x_t )/ (1-abt) + A * x_t
             return C, x0
         def advance_time(x_t, v, dt, Gamma, A, C, D):
@@ -266,9 +266,3 @@ class LanPaint():
         D_x = (2 * abt**0 )**0.5
         D_y = (2 * abt**0 )**0.5
         return sigma, abt, dtx/2, dty/2, Gamma_x, Gamma_y, A_x, A_y, D_x, D_y
-
-
-
-    def x0_evalutation(self, x_t, score, sigma, args):
-        x0 = x_t + score(x_t)
-        return x0
