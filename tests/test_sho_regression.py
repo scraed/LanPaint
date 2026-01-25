@@ -29,6 +29,12 @@ def test_langevin_dynamics_fallback_on_nan() -> None:
         # Execute langevin_dynamics
         # This should try run_damped -> get NaNs -> raise ValueError -> catch -> run_overdamped
         x_out, args_out = lp.langevin_dynamics(x_t, score, mask, step_size, current_times, sigma_y=1.0)
+        assert hasattr(args_out, "v")
+        assert hasattr(args_out, "C")
+        assert hasattr(args_out, "x0")
+        assert args_out[0] is args_out.v
+        assert args_out[1] is args_out.C
+        assert args_out[2] is args_out.x0
         v_out = args_out[0]
         # Verify that SHO was initialized and dynamics called
         MockSHO.assert_called()
@@ -53,6 +59,12 @@ def test_langevin_dynamics_fallback_on_exception() -> None:
         # Configure dynamics to raise Exception
         mock_instance.dynamics.side_effect = RuntimeError("Simulation exploded")
         x_out, args_out = lp.langevin_dynamics(x_t, score, mask, step_size, current_times, sigma_y=1.0)
+        assert hasattr(args_out, "v")
+        assert hasattr(args_out, "C")
+        assert hasattr(args_out, "x0")
+        assert args_out[0] is args_out.v
+        assert args_out[1] is args_out.C
+        assert args_out[2] is args_out.x0
         v_out = args_out[0]
         assert torch.isfinite(x_out).all()
         assert v_out is None or torch.isfinite(v_out).all()

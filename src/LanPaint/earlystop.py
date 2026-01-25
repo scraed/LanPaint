@@ -3,6 +3,8 @@ from typing import Any, Callable, Optional
 
 import torch
 
+from .types import LangevinState
+
 
 def _clamp01(val: float) -> float:
     if val <= 0.0:
@@ -253,9 +255,14 @@ class LanPaintEarlyStopper:
             custom_dist = dist is not None
 
         if dist is None:
-            if isinstance(prev_args, tuple) and len(prev_args) >= 3:
+            if isinstance(prev_args, LangevinState):
+                x0_prev = prev_args.x0
+            elif isinstance(prev_args, tuple) and len(prev_args) >= 3:
                 x0_prev = prev_args[2]
-            if isinstance(args, tuple) and len(args) >= 3:
+
+            if isinstance(args, LangevinState):
+                x0_cur = args.x0
+            elif isinstance(args, tuple) and len(args) >= 3:
                 x0_cur = args[2]
 
             if x0_prev is not None and x0_cur is not None:

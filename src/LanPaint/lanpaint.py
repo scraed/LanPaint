@@ -2,6 +2,7 @@ import torch
 from .utils import StochasticHarmonicOscillator
 from functools import partial
 from .earlystop import LanPaintEarlyStopper
+from .types import LangevinState
 
 class LanPaint():
     def __init__(self, Model, NSteps, Friction, Lambda, Beta, StepSize, IS_FLUX = False, IS_FLOW = False, EarlyStopThreshold = 0.0, EarlyStopPatience = 1, EarlyStopHook = None):
@@ -126,6 +127,9 @@ class LanPaint():
         return beta
 
     def langevin_dynamics(self, x_t, score, mask, step_size, current_times, sigma_x=1, sigma_y=0, args=None):
+        if args is not None and not isinstance(args, LangevinState):
+            if isinstance(args, tuple) and len(args) >= 3:
+                args = LangevinState(args[0], args[1], args[2])
         # prepare the step size and time parameters
         with torch.autocast(device_type=x_t.device.type, dtype=torch.float32):
             step_sizes = self.prepare_step_size(current_times, step_size, sigma_x, sigma_y)
@@ -186,44 +190,43 @@ class LanPaint():
                 C, x0 = Coef_C(x_t)
                 x_t, v = advance_time(x_t, v, dt, Gamma, A, C, D)
             else:
-                v, C, _ = args
+                v = args.v
+                C = args.C
                 x_t, v = advance_time(x_t, v, dt/2, Gamma, A, C, D)
                 C_new, x0 = Coef_C(x_t)
                 v = v + Gamma**0.5 * ( C_new - C) *dt
                 x_t, v = advance_time(x_t, v, dt/2, Gamma, A, C, D)
                 C = C_new
             # args is (v, C, x0) for the next inner step.
-            return x_t, (v, C, x0)
+            return x_t, LangevinState(v, C, x0)
 
         def run_overdamped(x_t, args):
             if args is None:
                 C, x0 = Coef_C(x_t)
                 x_t = advance_time_overdamped(x_t, dt, A, C, D)
             else:
-                _, C, _ = args
+                C = args.C
                 x_t = advance_time_overdamped(x_t, dt / 2, A, C, D)
                 C_new, x0 = Coef_C(x_t)
                 x_t = x_t + (C_new - C) * dt
                 x_t = advance_time_overdamped(x_t, dt / 2, A, C, D)
                 C = C_new
             # args is (v, C, x0); v is None in the overdamped fallback.
-            return x_t, (None, C, x0)
+            return x_t, LangevinState(None, C, x0)
 
         try:
-            x_t_next, (v_next, C_next, x0) = run_damped(x_t, args)
+            x_t_next, state = run_damped(x_t, args)
 
-            if torch.isnan(x_t_next).any() or torch.isnan(v_next).any():
+            v_next = state.v
+            if torch.isnan(x_t_next).any() or (v_next is not None and torch.isnan(v_next).any()):
                 raise ValueError("NaN detected")
 
             x_t = x_t_next
-            v = v_next
-            C = C_next
-
         except Exception:
-            x_t, (v, C, x0) = run_overdamped(x_t, args)
+            x_t, state = run_overdamped(x_t, args)
 
         # args is (v, C, x0); v can be None if we fell back to the overdamped update.
-        return x_t, (v, C, x0)
+        return x_t, state
 
     def prepare_step_size(self, current_times, step_size, sigma_x, sigma_y):
         # -------------------------------------------------------------------------
