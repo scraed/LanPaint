@@ -43,6 +43,12 @@ def _boundary_weight(latent_mask: torch.Tensor, inpaint_weight: torch.Tensor) ->
     return boundary.to(dtype=torch.float32) * inpaint_weight
 
 
+def _weighted_mse(t1: torch.Tensor, t2: torch.Tensor, weight: torch.Tensor) -> float:
+    diff_sq = (t1.to(dtype=torch.float32) - t2.to(dtype=torch.float32)) ** 2
+    denom = torch.sum(weight) + 1e-12
+    return float((torch.sum(diff_sq * weight) / denom).item())
+
+
 class LanPaintEarlyStopper:
     """
     Per-step early-stop logic for LanPaint inner (Langevin) iterations.
@@ -75,6 +81,9 @@ class LanPaintEarlyStopper:
 
         enabled_early_stop = (threshold > 0.0) and (patience > 0)
         patience = max(1, patience)
+        # Require N+1 consecutive stable checks:
+        # - the first stable step sets patience_counter to 1
+        # - `patience=1` therefore stops after 2 stable steps
         patience_eff = patience + 1
         threshold_eff = threshold
         inpaint_weight = None
@@ -250,19 +259,14 @@ class LanPaintEarlyStopper:
                 x0_cur = args[2]
 
             if x0_prev is not None and x0_cur is not None:
-                diff_sq = (x0_cur.to(dtype=torch.float32) - x0_prev.to(dtype=torch.float32)) ** 2
-                denom = torch.sum(inpaint) + 1e-12
-                dist_inpaint = (torch.sum(diff_sq * inpaint) / denom).item()
-                dist = float(dist_inpaint)
+                dist_inpaint = _weighted_mse(x0_cur, x0_prev, inpaint)
+                dist = dist_inpaint
                 if self.ring_weight is not None:
-                    ring_denom = torch.sum(self.ring_weight) + 1e-12
-                    dist_ring = (torch.sum(diff_sq * self.ring_weight) / ring_denom).item()
+                    dist_ring = _weighted_mse(x0_cur, x0_prev, self.ring_weight)
                     dist = max(float(dist_inpaint), float(dist_ring))
             else:
-                diff_sq = (x_t_after.to(dtype=torch.float32) - x_t_before.to(dtype=torch.float32)) ** 2
-                denom = torch.sum(inpaint) + 1e-12
-                dist = (torch.sum(diff_sq * inpaint) / denom).item()
-                dist_inpaint = dist
+                dist_inpaint = _weighted_mse(x_t_after, x_t_before, inpaint)
+                dist = dist_inpaint
 
         threshold_used = self.threshold if custom_dist else self.threshold_eff
 
@@ -272,13 +276,10 @@ class LanPaintEarlyStopper:
                 if self.x0_anchor is None:
                     self.x0_anchor = x0_cur.detach()
                 else:
-                    diff_sq = (x0_cur.to(dtype=torch.float32) - self.x0_anchor.to(dtype=torch.float32)) ** 2
-                    denom = torch.sum(inpaint) + 1e-12
-                    drift_inpaint = (torch.sum(diff_sq * inpaint) / denom).item()
-                    dist_drift = float(drift_inpaint)
+                    drift_inpaint = _weighted_mse(x0_cur, self.x0_anchor, inpaint)
+                    dist_drift = drift_inpaint
                     if self.ring_weight is not None:
-                        ring_denom = torch.sum(self.ring_weight) + 1e-12
-                        drift_ring = (torch.sum(diff_sq * self.ring_weight) / ring_denom).item()
+                        drift_ring = _weighted_mse(x0_cur, self.x0_anchor, self.ring_weight)
                         dist_drift = max(float(drift_inpaint), float(drift_ring))
                     dist = max(float(dist), float(dist_drift))
             else:

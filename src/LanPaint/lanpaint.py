@@ -192,6 +192,7 @@ class LanPaint():
                 v = v + Gamma**0.5 * ( C_new - C) *dt
                 x_t, v = advance_time(x_t, v, dt/2, Gamma, A, C, D)
                 C = C_new
+            # args is (v, C, x0) for the next inner step.
             return x_t, (v, C, x0)
 
         def run_overdamped(x_t, args):
@@ -205,6 +206,7 @@ class LanPaint():
                 x_t = x_t + (C_new - C) * dt
                 x_t = advance_time_overdamped(x_t, dt / 2, A, C, D)
                 C = C_new
+            # args is (v, C, x0); v is None in the overdamped fallback.
             return x_t, (None, C, x0)
 
         try:
@@ -220,6 +222,7 @@ class LanPaint():
         except Exception:
             x_t, (v, C, x0) = run_overdamped(x_t, args)
 
+        # args is (v, C, x0); v can be None if we fell back to the overdamped update.
         return x_t, (v, C, x0)
 
     def prepare_step_size(self, current_times, step_size, sigma_x, sigma_y):
