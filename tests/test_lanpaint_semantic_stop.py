@@ -1,6 +1,7 @@
 import torch
 
 from src.LanPaint.lanpaint import LanPaint as LanPaintEngine
+from src.LanPaint.types import LangevinState
 
 
 class _DummySampling:
@@ -490,7 +491,7 @@ def test_semantic_stop_is_more_conservative_near_tail_abt() -> None:
         x0 = torch.zeros_like(x_t) + (step * delta)
 
         # Ensure the first iteration does not look stable due to x_t noise metric.
-        return x_t + (1.0 if step <= 1 else 0.0), (None, None, x0)
+        return x_t + (1.0 if step <= 1 else 0.0), LangevinState(v=None, C=None, x0=x0)
 
     engine.langevin_dynamics = fake_langevin_delta  # type: ignore[method-assign]
 
@@ -608,7 +609,7 @@ def test_default_semantic_stop_is_mask_normalized() -> None:
         prev_x0 = None if args is None else args[2]
         x0 = x_t.detach().clone() * 0 if prev_x0 is None else prev_x0
         x0 = x0 + delta * (1 - mask)
-        return x_t, (None, None, x0)
+        return x_t, LangevinState(v=None, C=None, x0=x0)
 
     engine.langevin_dynamics = fake_langevin_delta  # type: ignore[method-assign]
 
@@ -735,7 +736,7 @@ def test_semantic_stop_drift_guard_prevents_premature_stop() -> None:
         x0 = torch.zeros_like(x_t) + (step * delta)
 
         # Ensure the first iteration does not look stable due to x_t noise metric.
-        return x_t + (1.0 if step <= 1 else 0.0), (None, None, x0)
+        return x_t + (1.0 if step <= 1 else 0.0), LangevinState(v=None, C=None, x0=x0)
 
     engine.langevin_dynamics = fake_langevin_drift  # type: ignore[method-assign]
 
@@ -813,7 +814,7 @@ def test_semantic_stop_does_not_stop_while_boundary_changes() -> None:
         # Simulate a case where the interior is stable, but the boundary keeps changing.
         step = float(calls["langevin"])
         x0 = boundary_weight.to(dtype=x_t.dtype) * (step * delta)
-        return x_t, (None, None, x0)
+        return x_t, LangevinState(v=None, C=None, x0=x0)
 
     engine.langevin_dynamics = fake_langevin_delta  # type: ignore[method-assign]
 
@@ -915,7 +916,7 @@ def test_semantic_stop_boundary_guard_is_adjacency_only() -> None:
 
         step = float(calls["langevin"])
         x0 = changed_mask.to(dtype=x_t.dtype) * (step * delta)
-        return x_t, (None, None, x0)
+        return x_t, LangevinState(v=None, C=None, x0=x0)
 
     engine.langevin_dynamics = fake_langevin_delta  # type: ignore[method-assign]
 
