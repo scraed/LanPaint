@@ -179,6 +179,16 @@ class LanPaintEarlyStopper:
 
     @staticmethod
     def _wrap_distance_fn(distance_fn: Optional[Callable[..., Any]]):
+        """
+        Wrap a user-provided `distance_fn` into a normalized callable: fn(prev, cur, ctx) -> dist|None.
+
+        Supported signatures:
+        - 3+ positional (or *args): `distance_fn(prev, cur, ctx)`
+        - explicit / **kwargs ctx: `distance_fn(prev, cur, ctx=ctx)`
+        - default 2-arg: `distance_fn(cur, prev)`
+
+        Return contract: None (use default metric) or a scalar (Python number / 0-d (1-element) torch.Tensor).
+        """
         if not callable(distance_fn):
             return None
 
@@ -282,7 +292,7 @@ class LanPaintEarlyStopper:
 
         # Drift guard (only for default metric with x0_cur).
         if x0_cur is not None and not custom_dist:
-            if float(dist) <= threshold_used:
+            if dist <= threshold_used:
                 if self.x0_anchor is None:
                     self.x0_anchor = x0_cur.detach()
                 else:
@@ -295,7 +305,7 @@ class LanPaintEarlyStopper:
             else:
                 self.x0_anchor = None
 
-        if float(dist) <= threshold_used:
+        if dist <= threshold_used:
             self.patience_counter += 1
         else:
             self.patience_counter = 0
@@ -310,7 +320,7 @@ class LanPaintEarlyStopper:
                     "outer_step": self.bench_outer_step,
                     "bench_timestep": self.bench_timestep,
                     "inner_step": i + 1,
-                    "dist": float(dist),
+                    "dist": dist,
                     "dist_inpaint": None if dist_inpaint is None else float(dist_inpaint),
                     "dist_ring": None if dist_ring is None else float(dist_ring),
                     "dist_drift": None if dist_drift is None else float(dist_drift),
