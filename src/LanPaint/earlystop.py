@@ -67,9 +67,7 @@ class LanPaintEarlyStopper:
         default_patience: int,
         default_distance_fn: Optional[Callable[..., Any]],
     ) -> Optional["LanPaintEarlyStopper"]:
-        semantic_stop = None
-        if isinstance(model_options, dict):
-            semantic_stop = model_options.get("lanpaint_semantic_stop")
+        semantic_stop = model_options.get("lanpaint_semantic_stop") if isinstance(model_options, dict) else None
 
         threshold = float(default_threshold)
         patience = int(default_patience)
@@ -82,16 +80,12 @@ class LanPaintEarlyStopper:
             distance_fn = semantic_stop.get("distance_fn", distance_fn)
 
         enabled_early_stop = (threshold > 0.0) and (patience > 0)
-        patience = max(1, patience)
         # Require N+1 consecutive stable checks:
         # - the first stable step sets patience_counter to 1
         # - `patience=1` therefore stops after 2 stable steps
-        patience_eff = patience + 1
+        patience_eff = max(1, patience) + 1
         threshold_eff = threshold
-        inpaint_weight = None
-        ring_weight = None
-        trace = None
-        abt_val = None
+        inpaint_weight = ring_weight = trace = abt_val = None
 
         if enabled_early_stop:
             try:
@@ -115,9 +109,7 @@ class LanPaintEarlyStopper:
             return None
 
         # Pre-fetch trace keys to avoid repeated dict lookups
-        bench_case_id = None
-        bench_outer_step = None
-        bench_timestep = None
+        bench_case_id = bench_outer_step = bench_timestep = None
         if isinstance(trace, list) and isinstance(model_options, dict):
             bench_case_id = model_options.get("bench_case_id")
             bench_outer_step = model_options.get("bench_outer_step")
@@ -250,11 +242,7 @@ class LanPaintEarlyStopper:
 
         dist = None
         custom_dist = False
-        dist_inpaint = None
-        dist_ring = None
-        dist_drift = None
-        x0_prev = None
-        x0_cur = None
+        dist_inpaint = dist_ring = dist_drift = x0_prev = x0_cur = None
 
         if self._dist_wrapper is not None:
             dist = self._dist_wrapper(x_t_prev_for_custom, x_t_after, ctx)
@@ -265,25 +253,23 @@ class LanPaintEarlyStopper:
                     dist = float(dist.item())
                 else:
                     dist = float(dist)
-            custom_dist = dist is not None
+        custom_dist = dist is not None
 
         if dist is None:
-            if isinstance(prev_args, LangevinState):
-                x0_prev = prev_args.x0
-            elif isinstance(prev_args, tuple) and len(prev_args) >= 3:
-                x0_prev = prev_args[2]
+            def _get_x0(arg: Any) -> Optional[torch.Tensor]:
+                if isinstance(arg, LangevinState):
+                    return arg.x0
+                if isinstance(arg, tuple) and len(arg) >= 3:
+                    return arg[2]
+                return None
 
-            if isinstance(args, LangevinState):
-                x0_cur = args.x0
-            elif isinstance(args, tuple) and len(args) >= 3:
-                x0_cur = args[2]
+            x0_prev = _get_x0(prev_args)
+            x0_cur = _get_x0(args)
 
             if x0_prev is not None and x0_cur is not None:
                 dist_inpaint = _weighted_mse(x0_cur, x0_prev, inpaint)
-                dist = dist_inpaint
-                if self.ring_weight is not None:
-                    dist_ring = _weighted_mse(x0_cur, x0_prev, self.ring_weight)
-                    dist = max(dist_inpaint, dist_ring)
+                dist_ring = _weighted_mse(x0_cur, x0_prev, self.ring_weight) if self.ring_weight is not None else None
+                dist = dist_inpaint if dist_ring is None else max(dist_inpaint, dist_ring)
             else:
                 dist_inpaint = _weighted_mse(x_t_after, x_t_before, inpaint)
                 dist = dist_inpaint
@@ -297,10 +283,8 @@ class LanPaintEarlyStopper:
                     self.x0_anchor = x0_cur.detach()
                 else:
                     drift_inpaint = _weighted_mse(x0_cur, self.x0_anchor, inpaint)
-                    dist_drift = drift_inpaint
-                    if self.ring_weight is not None:
-                        drift_ring = _weighted_mse(x0_cur, self.x0_anchor, self.ring_weight)
-                        dist_drift = max(drift_inpaint, drift_ring)
+                    drift_ring = _weighted_mse(x0_cur, self.x0_anchor, self.ring_weight) if self.ring_weight is not None else None
+                    dist_drift = drift_inpaint if drift_ring is None else max(drift_inpaint, drift_ring)
                     dist = max(dist, dist_drift)
             else:
                 self.x0_anchor = None
