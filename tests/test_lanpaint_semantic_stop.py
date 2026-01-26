@@ -83,7 +83,7 @@ def test_semantic_stop_triggers_deterministically_at_patience() -> None:
     assert calls["distance"] == 3
 
 
-def test_semantic_stop_ignores_min_steps_option() -> None:
+def test_semantic_stop_maps_min_steps_into_patience_floor() -> None:
     engine = LanPaintEngine(
         _DummyModel(),
         NSteps=10,
@@ -117,9 +117,9 @@ def test_semantic_stop_ignores_min_steps_option() -> None:
     x, latent_image, noise, sigma, latent_mask, current_times = _inputs()
     engine(x, latent_image, noise, sigma, latent_mask, current_times, model_options=model_options, seed=0, n_steps=10)
 
-    # 'min_steps' is ignored; stopping is controlled only by patience.
-    assert calls["langevin"] == 2
-    assert calls["distance"] == 2
+    # Legacy 'min_steps' is mapped into the effective patience floor, so stopping cannot happen before 5 steps.
+    assert calls["langevin"] == 5
+    assert calls["distance"] == 5
 
 
 def test_semantic_stop_patience_is_not_abt_boosted() -> None:

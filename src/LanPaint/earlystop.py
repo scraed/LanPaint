@@ -79,6 +79,17 @@ class LanPaintEarlyStopper:
             patience = int(semantic_stop.get("patience", patience))
             distance_fn = semantic_stop.get("distance_fn", distance_fn)
 
+            # Backward compatibility: map legacy 'min_steps' to a patience floor so it is not an independent knob.
+            if patience > 0:
+                min_steps = semantic_stop.get("min_steps")
+                if min_steps is not None:
+                    try:
+                        min_steps_int = int(min_steps)
+                    except (TypeError, ValueError):
+                        min_steps_int = 0
+                    if min_steps_int > 1:
+                        patience = max(patience, min_steps_int - 1)
+
         enabled_early_stop = (threshold > 0.0) and (patience > 0)
         # Require N+1 consecutive stable checks:
         # - the first stable step sets patience_counter to 1
