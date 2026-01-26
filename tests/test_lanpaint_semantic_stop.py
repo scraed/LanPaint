@@ -669,6 +669,45 @@ def test_default_semantic_stop_is_mask_normalized() -> None:
     assert calls["without_score"] == 0
 
 
+def test_semantic_stop_is_disabled_when_no_inpaint_region() -> None:
+    engine = LanPaintEngine(
+        _DummyModel(),
+        NSteps=10,
+        Friction=15.0,
+        Lambda=1.0,
+        Beta=1.0,
+        StepSize=0.2,
+    )
+
+    calls = {"langevin": 0, "with_score": 0, "without_score": 0}
+
+    def fake_langevin(x_t, score, mask, step_size, current_times, sigma_x=1, sigma_y=0, args=None):  # type: ignore[no-untyped-def]
+        calls["langevin"] += 1
+        if score is None:
+            calls["without_score"] += 1
+        else:
+            calls["with_score"] += 1
+        return x_t, args
+
+    engine.langevin_dynamics = fake_langevin  # type: ignore[method-assign]
+
+    model_options = {
+        "lanpaint_semantic_stop": {
+            "threshold": 1e-6,
+            "patience": 1,
+        }
+    }
+
+    x, latent_image, noise, sigma, latent_mask, _ = _inputs()
+    current_times = (sigma, torch.tensor([0.5]), torch.tensor([0.0]))
+    no_inpaint_mask = torch.ones_like(latent_mask)
+    engine(x, latent_image, noise, sigma, no_inpaint_mask, current_times, model_options=model_options, seed=0, n_steps=10)
+
+    assert calls["langevin"] == 10
+    assert calls["with_score"] == 10
+    assert calls["without_score"] == 0
+
+
 def test_semantic_stop_drift_guard_prevents_premature_stop() -> None:
     engine = LanPaintEngine(
         _DummyModel(),

@@ -104,9 +104,12 @@ class LanPaintEarlyStopper:
                 enabled_early_stop = False
             else:
                 inpaint_weight = (1 - latent_mask).to(dtype=torch.float32)
-                ring_weight = _boundary_weight(latent_mask, inpaint_weight)
-                if isinstance(model_options, dict):
-                    trace = model_options.get("lanpaint_semantic_trace")
+                if float(torch.sum(inpaint_weight).item()) < 1e-6:
+                    enabled_early_stop = False
+                else:
+                    ring_weight = _boundary_weight(latent_mask, inpaint_weight)
+                    if isinstance(model_options, dict):
+                        trace = model_options.get("lanpaint_semantic_trace")
 
         if not enabled_early_stop:
             return None
@@ -270,7 +273,7 @@ class LanPaintEarlyStopper:
                 dist = dist_inpaint
                 if self.ring_weight is not None:
                     dist_ring = _weighted_mse(x0_cur, x0_prev, self.ring_weight)
-                    dist = max(float(dist_inpaint), float(dist_ring))
+                    dist = max(dist_inpaint, dist_ring)
             else:
                 dist_inpaint = _weighted_mse(x_t_after, x_t_before, inpaint)
                 dist = dist_inpaint
@@ -287,8 +290,8 @@ class LanPaintEarlyStopper:
                     dist_drift = drift_inpaint
                     if self.ring_weight is not None:
                         drift_ring = _weighted_mse(x0_cur, self.x0_anchor, self.ring_weight)
-                        dist_drift = max(float(drift_inpaint), float(drift_ring))
-                    dist = max(float(dist), float(dist_drift))
+                        dist_drift = max(drift_inpaint, drift_ring)
+                    dist = max(dist, dist_drift)
             else:
                 self.x0_anchor = None
 
