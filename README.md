@@ -39,7 +39,7 @@ note={}
 |:--------:|:------:|:---------:|
 | ![Original Z-image](https://github.com/scraed/LanPaint/blob/master/examples/Example_21/Original_No_Mask.png) | ![Masked Z-image](https://github.com/scraed/LanPaint/blob/master/examples/Example_21/Masked_Load_Me_in_Loader.png) | ![Inpainted Z-image](https://github.com/scraed/LanPaint/blob/master/examples/Example_21/InPainted_Drag_Me_to_ComfyUI.png) |
 
-**🎬 NEW: LanPaint now supports inpainting based on Z-Image-Base!**
+**🎬 NEW: LanPaint now supports Z-Image-Base too!**
 
 | Original | Masked | Inpainted |
 |:--------:|:------:|:---------:|
@@ -75,7 +75,7 @@ Check our latest [Wan 2.2 Video Examples](#video-examples-beta), [Wan 2.2 Image 
   - [Flux.2.Dev](#example-flux2dev-inpaintlanpaint-k-sampler-5-steps-of-thinking)
   - [Flux 2 klein](#example-flux-2-klein-inpaintlanpaint-k-sampler-2-steps-of-thinking)
   - [Z-image](#example-z-image-inpaintlanpaint-k-sampler-5-steps-of-thinking)
-  - [Z-image-base](#example-z-image-base-inpaintlanpaint-k-sampler-5-steps-of-thinking)
+  - [Z-image-base](#example-z-image-base-inpaintlanpaint-k-sampler-3-steps-of-thinking)
   - [Hunyuan T2I](#example-hunyuan-t2i-inpaintlanpaint-k-sampler-5-steps-of-thinking)
   - [Wan 2.2 T2I](#example-wan22-inpaintlanpaint-k-sampler-5-steps-of-thinking)
   - [Wan 2.2 T2I with reference](#example-wan22-partial-inpaintlanpaint-k-sampler-5-steps-of-thinking)
