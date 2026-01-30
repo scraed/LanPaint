@@ -1,9 +1,11 @@
 import torch
 from .utils import StochasticHarmonicOscillator
 from functools import partial
+from .earlystop import LanPaintEarlyStopper
+from .types import LangevinState
 
 class LanPaint():
-    def __init__(self, Model, NSteps, Friction, Lambda, Beta, StepSize, IS_FLUX = False, IS_FLOW = False):
+    def __init__(self, Model, NSteps, Friction, Lambda, Beta, StepSize, IS_FLUX = False, IS_FLOW = False, EarlyStopThreshold = 0.0, EarlyStopPatience = 1, EarlyStopHook = None):
         self.n_steps = NSteps
         self.chara_lamb = Lambda
         self.IS_FLUX = IS_FLUX
@@ -13,6 +15,9 @@ class LanPaint():
         self.friction = Friction
         self.chara_beta = Beta
         self.img_dim_size = None
+        self.early_stop_threshold = EarlyStopThreshold
+        self.early_stop_patience = EarlyStopPatience
+        self.early_stop_hook = EarlyStopHook
 
     def add_none_dims(self, array):
         # Create a tuple with ':' for the first dimension and 'None' repeated num_nones times
@@ -51,9 +56,46 @@ class LanPaint():
         ############ LanPaint Iterations Start ###############
         # after noise_scaling, noise = latent_image + noise * sigma, which is x_t in the variance exploding diffusion model notation for the known region.
         args = None
+        stopper = LanPaintEarlyStopper.from_options(
+            model_options=model_options if isinstance(model_options, dict) else None,
+            latent_mask=latent_mask,
+            abt=abt,
+            default_threshold=self.early_stop_threshold,
+            default_patience=self.early_stop_patience,
+            default_distance_fn=self.early_stop_hook,
+        )
+
         for i in range(n_steps):
             score_func = partial( self.score_model, y = self.latent_image, mask = latent_mask, abt = self.add_none_dims(abt), sigma = self.add_none_dims(VE_Sigma), tflow = self.add_none_dims(Flow_t), model_options = model_options, seed = seed )
+
+            prev_args = args
+            x_t_prev = x_t.detach() if (stopper is not None and stopper.has_custom_distance_fn) else None
+            x_t_before = x_t if (stopper is not None and stopper.enabled) else None
+
             x_t, args = self.langevin_dynamics(x_t, score_func , latent_mask, step_size , current_times, sigma_x = self.add_none_dims(self.sigma_x(abt)), sigma_y = self.add_none_dims(self.sigma_y(abt)), args = args)  
+
+            if stopper is not None:
+                ctx = {
+                    "step": i,
+                    "steps_done": i + 1,
+                    "n_steps": n_steps,
+                    "mask": latent_mask,
+                    "latent_image": self.latent_image,
+                    "current_times": current_times,
+                    "seed": seed,
+                }
+                if stopper.step(
+                    i=i,
+                    n_steps=n_steps,
+                    x_t_before=x_t_before,
+                    x_t_after=x_t,
+                    x_t_prev_for_custom=x_t_prev,
+                    prev_args=prev_args,
+                    args=args,
+                    ctx=ctx,
+                ):
+                    break
+
         if IS_FLUX or IS_FLOW:
             x = x_t / ( self.add_none_dims(abt)**0.5 + (1-self.add_none_dims(abt))**0.5 )
         else:
@@ -85,6 +127,13 @@ class LanPaint():
         return beta
 
     def langevin_dynamics(self, x_t, score, mask, step_size, current_times, sigma_x=1, sigma_y=0, args=None):
+        if args is not None and not isinstance(args, LangevinState):
+            if isinstance(args, tuple):
+                if len(args) == 2:
+                    # Backwards compat: older state was (v, C) without x0.
+                    args = LangevinState(args[0], args[1], None)
+                elif len(args) >= 3:
+                    args = LangevinState(args[0], args[1], args[2])
         # prepare the step size and time parameters
         with torch.autocast(device_type=x_t.device.type, dtype=torch.float32):
             step_sizes = self.prepare_step_size(current_times, step_size, sigma_x, sigma_y)
@@ -102,11 +151,10 @@ class LanPaint():
         dt = dtx * (1-mask) + dty * mask
         Gamma = Gamma_x * (1-mask) + Gamma_y * mask
 
-
         def Coef_C(x_t):
-            x0 = self.x0_evalutation(x_t, score, sigma, args)
+            x0 = x_t + score(x_t)
             C = (abt**0.5 * x0  - x_t )/ (1-abt) + A * x_t
-            return C
+            return C, x0
         def advance_time(x_t, v, dt, Gamma, A, C, D):
             dtype = x_t.dtype
             with torch.autocast(device_type=x_t.device.type, dtype=torch.float32):
@@ -143,44 +191,46 @@ class LanPaint():
         def run_damped(x_t, args):
             if args is None:
                 v = None
-                C = Coef_C(x_t)
+                C, x0 = Coef_C(x_t)
                 x_t, v = advance_time(x_t, v, dt, Gamma, A, C, D)
             else:
-                v, C = args
+                v = args.v
+                C = args.C
                 x_t, v = advance_time(x_t, v, dt/2, Gamma, A, C, D)
-                C_new = Coef_C(x_t)
+                C_new, x0 = Coef_C(x_t)
                 v = v + Gamma**0.5 * ( C_new - C) *dt
                 x_t, v = advance_time(x_t, v, dt/2, Gamma, A, C, D)
                 C = C_new
-            return x_t, (v, C)
+            # args is (v, C, x0) for the next inner step.
+            return x_t, LangevinState(v, C, x0)
 
         def run_overdamped(x_t, args):
             if args is None:
-                C = Coef_C(x_t)
+                C, x0 = Coef_C(x_t)
                 x_t = advance_time_overdamped(x_t, dt, A, C, D)
             else:
-                _, C = args
+                C = args.C
                 x_t = advance_time_overdamped(x_t, dt / 2, A, C, D)
-                C_new = Coef_C(x_t)
+                C_new, x0 = Coef_C(x_t)
                 x_t = x_t + (C_new - C) * dt
                 x_t = advance_time_overdamped(x_t, dt / 2, A, C, D)
                 C = C_new
-            return x_t, (None, C)
+            # args is (v, C, x0); v is None in the overdamped fallback.
+            return x_t, LangevinState(None, C, x0)
 
         try:
-            x_t_next, (v_next, C_next) = run_damped(x_t, args)
+            x_t_next, state = run_damped(x_t, args)
 
-            if torch.isnan(x_t_next).any() or torch.isnan(v_next).any():
+            v_next = state.v
+            if torch.isnan(x_t_next).any() or (v_next is not None and torch.isnan(v_next).any()):
                 raise ValueError("NaN detected")
 
             x_t = x_t_next
-            v = v_next
-            C = C_next
-
         except Exception:
-            x_t, (v, C) = run_overdamped(x_t, args)
+            x_t, state = run_overdamped(x_t, args)
 
-        return x_t, (v, C)
+        # args is (v, C, x0); v can be None if we fell back to the overdamped update.
+        return x_t, state
 
     def prepare_step_size(self, current_times, step_size, sigma_x, sigma_y):
         # -------------------------------------------------------------------------
@@ -216,9 +266,3 @@ class LanPaint():
         D_x = (2 * abt**0 )**0.5
         D_y = (2 * abt**0 )**0.5
         return sigma, abt, dtx/2, dty/2, Gamma_x, Gamma_y, A_x, A_y, D_x, D_y
-
-
-
-    def x0_evalutation(self, x_t, score, sigma, args):
-        x0 = x_t + score(x_t)
-        return x0
