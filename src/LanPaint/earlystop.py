@@ -1,3 +1,7 @@
+"""
+Early Stop Logic Contributed by `https://github.com/godnight10061`.
+"""
+
 import inspect
 from typing import Any, Callable, Optional
 
