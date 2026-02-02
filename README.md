@@ -31,7 +31,7 @@ note={}
 ```
 **🎉 NEW 2026: Join our discord!**
 
-[Join our Discord](https://discord.gg/aCGZutBV) to share experiences, discuss features, and explore future development.
+[Join our Discord](https://discord.gg/yN5wYDE6W4) to share experiences, discuss features, and explore future development.
 
 **🎬 NEW: LanPaint now supports inpainting and outpainting based on Z-Image!**
 
