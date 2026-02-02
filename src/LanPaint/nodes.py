@@ -13,8 +13,27 @@ from .utils import *
 from .lanpaint import LanPaint
 from comfy.model_base import WAN22
 import comfyui_version 
+import comfy.nested_tensor 
 
 def reshape_mask(input_mask, output_shape,video_inpainting=False):
+
+    import comfy.nested_tensor
+    
+    # 修改这里的判断条件，不能只用 hasattr("unbind")
+    if isinstance(input_mask, comfy.nested_tensor.NestedTensor):
+        masks = input_mask.unbind()
+        
+        # 如果 output_shape 也是嵌套的（通常 noise.shape 在 NestedTensor 下返回 tuple of shapes）
+        if isinstance(output_shape, (list, tuple)) and len(output_shape) > 0 and not isinstance(output_shape[0], int):
+            reshaped_parts = []
+            for i in range(len(masks)):
+                # 递归处理每一个子部分，并传入对应的子 shape
+                reshaped_parts.append(reshape_mask(masks[i], output_shape[i], video_inpainting))
+            return comfy.nested_tensor.NestedTensor(tuple(reshaped_parts))
+        else:
+            # 如果 output_shape 是单一形状（降级处理）
+            return comfy.nested_tensor.NestedTensor(tuple(reshape_mask(m, output_shape, video_inpainting) for m in masks))
+        
     dims = len(output_shape) - 2
     print('output shape',output_shape)
     scale_mode = "nearest-exact"
@@ -23,38 +42,71 @@ def reshape_mask(input_mask, output_shape,video_inpainting=False):
     print('input_mask.ndim:', input_mask.ndim, 'output_shape len:', len(output_shape))
     
     # Handle video case with temporal dimension
-    if video_inpainting:  # Video case: (batch, channels, frames, height, width)
-        target_frames = output_shape[2]
-        target_height, target_width = output_shape[-2:]
+    # if video_inpainting:  # Video case: (batch, channels, frames, height, width)
+    #     target_frames = output_shape[2]
+    #     target_height, target_width = output_shape[-2:]
         
-        print('Video case - input_mask initial shape:', input_mask.shape)
+    #     print('Video case - input_mask initial shape:', input_mask.shape)
         
-        # First reshape input_mask to have proper dimensions for video processing
-        # Assume input is (frames, channels, height, width) -> (1, channels, frames, height, width)
-        ## if comfy version < 0.6.0
-        if comfyui_version.__version__ < "0.6.0":
-            input_mask = input_mask.permute(1, 0, 2, 3).unsqueeze(0)
-        print('Video case - input_mask after reshaping:', input_mask.shape)
-        # Ensure we have the correct 5D shape: (batch, channels, frames, height, width)
-        batch_size, channels, frames, height, width = input_mask.shape
-        print('Video case - dimensions: batch_size={}, channels={}, frames={}, height={}, width={}'.format(batch_size, channels, frames, height, width))
-        print('Video case - target size:', (target_frames, target_height, target_width))
+    #     # First reshape input_mask to have proper dimensions for video processing
+    #     # Assume input is (frames, channels, height, width) -> (1, channels, frames, height, width)
+    #     ## if comfy version < 0.6.0
+    #     if comfyui_version.__version__ < "0.6.0":
+    #         input_mask = input_mask.permute(1, 0, 2, 3).unsqueeze(0)
+    #     print('Video case - input_mask after reshaping:', input_mask.shape)
+    #     # Ensure we have the correct 5D shape: (batch, channels, frames, height, width)
+    #     batch_size, channels, frames, height, width = input_mask.shape
+    #     print('Video case - dimensions: batch_size={}, channels={}, frames={}, height={}, width={}'.format(batch_size, channels, frames, height, width))
+    #     print('Video case - target size:', (target_frames, target_height, target_width))
         
-        # 3D nearest-exact interpolation: (batch, channels, frames, height, width) -> (batch, channels, target_frames, target_height, target_width)
-        temp_mask = torch.nn.functional.interpolate(
-            input_mask, 
-            size=(target_frames, target_height, target_width), 
-            mode=scale_mode, 
-        )
+    #     # 3D nearest-exact interpolation: (batch, channels, frames, height, width) -> (batch, channels, target_frames, target_height, target_width)
+    #     temp_mask = torch.nn.functional.interpolate(
+    #         input_mask, 
+    #         size=(target_frames, target_height, target_width), 
+    #         mode=scale_mode, 
+    #     )
         
-        # temp_mask is already 5D: (batch, channels, target_frames, target_height, target_width)
-        mask = temp_mask
-        print('after mask',mask.shape)
-        # Handle channel dimension expansion if needed
-        if mask.shape[1] < output_shape[1]:
-            mask = mask.repeat(1, output_shape[1], 1, 1, 1)[:, :output_shape[1]]
-        # Handle batch dimension
-        mask = repeat_to_batch_size(mask, output_shape[0])
+    #     # temp_mask is already 5D: (batch, channels, target_frames, target_height, target_width)
+    #     mask = temp_mask
+    #     print('after mask',mask.shape)
+    #     # Handle channel dimension expansion if needed
+    #     if mask.shape[1] < output_shape[1]:
+    #         mask = mask.repeat(1, output_shape[1], 1, 1, 1)[:, :output_shape[1]]
+    #     # Handle batch dimension
+    #     mask = repeat_to_batch_size(mask, output_shape[0])
+    if video_inpainting:
+        # 如果是 3D Token 序列 (LTXV 压平后的情况)
+        if input_mask.ndim == 3 and len(output_shape) == 3:
+            mask = torch.nn.functional.interpolate(
+                input_mask, 
+                size=output_shape[2], 
+                mode=scale_mode
+            )
+            return mask
+            
+        # 只有在确认为 5D 视频张量时才执行原有逻辑
+        if input_mask.ndim == 5:
+            target_frames = output_shape[2]
+            target_height, target_width = output_shape[-2:]
+            
+            # (这里保留你原有的 permute 和 unsqueeze 逻辑，但要确保它是针对非 5D 输入的补救)
+            if input_mask.ndim < 5:
+                # 假设输入是 (F, C, H, W) -> (1, C, F, H, W)
+                if hasattr(comfyui_version, "__version__") and comfyui_version.__version__ < "0.6.0":
+                    input_mask = input_mask.permute(1, 0, 2, 3).unsqueeze(0)
+            
+            # 现在可以安全地解包 5D 形状了
+            batch_size, channels, frames, height, width = input_mask.shape
+            mask = torch.nn.functional.interpolate(
+                input_mask, 
+                size=(target_frames, target_height, target_width), 
+                mode=scale_mode, 
+            )
+            
+            if mask.shape[1] < output_shape[1]:
+                mask = mask.repeat(1, output_shape[1], 1, 1, 1)[:, :output_shape[1]]
+            mask = repeat_to_batch_size(mask, output_shape[0])
+            return mask
     else:  # Original 2D image case
         if comfyui_version.__version__ < "0.6.0":
             mask = torch.nn.functional.interpolate(input_mask, size=output_shape[-2:], mode=scale_mode)
@@ -94,9 +146,9 @@ class CFGGuider_LanPaint:
         if isinstance(self.inner_model, WAN22):
             print("WAN22 detected")
             self.inner_model.extra_conds = super(WAN22, self.inner_model).extra_conds
-
         if denoise_mask is not None:
             video_inpainting = self.model_options.get("video_inpainting", False)
+            print('denoise_mask',denoise_mask.shape,type(denoise_mask))
             denoise_mask = prepare_mask(denoise_mask, noise.shape, device, video_inpainting)
 
         noise = noise.to(device)
@@ -144,8 +196,6 @@ class KSamplerX0Inpaint:
             abt = (1 - Flow_t)**2 / ((1 - Flow_t)**2 + Flow_t**2 )
             VE_Sigma = Flow_t / (1 - Flow_t)
             #print("t", torch.mean( sigma ).item(), "VE_Sigma", torch.mean( VE_Sigma ).item())
-            
-
         else:
             VE_Sigma = sigma 
             abt = 1/( 1+VE_Sigma**2 )
@@ -155,6 +205,31 @@ class KSamplerX0Inpaint:
             if "denoise_mask_function" in model_options:
                 denoise_mask = model_options["denoise_mask_function"](sigma, denoise_mask, extra_options={"model": self.inner_model, "sigmas": self.sigmas})
 
+            if isinstance(denoise_mask, comfy.nested_tensor.NestedTensor):
+                masks = denoise_mask.unbind()
+                xs = x.unbind()
+                latent_imgs = self.latent_image.unbind()
+                noises = self.noise.unbind()
+                
+                outs = []
+                # 针对 LTXV，通常 i=0 是视频，i=1 是音频
+                for i in range(len(xs)):
+                    m = (masks[i] > 0.5).float()
+                    lm = 1 - m
+                    # 这里的 PaintMethod 通常只支持普通 Tensor，所以我们分块处理
+                    # 注意：如果音频部分不需要 Inpaint，可以增加判断
+                    current_times = (VE_Sigma, abt, Flow_t)
+                    
+                    # 只有视频部分 (i=0) 应用 LanPaint 逻辑，音频部分通常直接 pass 或原样返回
+                    if i == 0:
+                        out_part = self.PaintMethod(xs[i], latent_imgs[i], noises[i], sigma, lm, current_times, model_options, seed)
+                    else:
+                        # 音频部分如果没有对应的 Inpaint 逻辑，通常直接调用 inner_model
+                        out_part, _ = self.inner_model(xs[i], sigma, model_options=model_options, seed=seed)
+                    outs.append(out_part)
+                    
+                return comfy.nested_tensor.NestedTensor(tuple(outs))
+            
             denoise_mask = (denoise_mask > 0.5).float()
 
             latent_mask = 1 - denoise_mask
@@ -189,6 +264,7 @@ class KSAMPLER(comfy.samplers.KSAMPLER):
         #noise here is a randn noise from comfy.sample.prepare_noise
         #latent_image is the latent image as input of the KSampler node. For inpainting, it is the masked latent image. Otherwise it is zero tensor.
         extra_args["denoise_mask"] = denoise_mask
+        print("LanPaint KSampler start sampler_function",denoise_mask.shape if denoise_mask is not None else None)
         model_k = KSamplerX0Inpaint(model_wrap, sigmas)
         model_k.latent_image = latent_image
         if self.inpaint_options.get("random", False): #TODO: Should this be the default?
@@ -453,6 +529,77 @@ class MaskBlend:
 
         return kernel
 
+class MaskBlendAlpha:
+    """
+    Create an RGBA image by writing the mask into the PNG alpha channel.
+
+    Requirement:
+    - inpaint region: alpha = 0 (transparent)
+    - other region:   alpha = 1 (opaque)
+
+    This node writes the mask into the PNG alpha channel.
+    Current default behavior matches the previous `invert_mask=True` behavior:
+    alpha = mask.
+    """
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": ("IMAGE", {"tooltip": "VAE-decoded image (RGB)."}),
+                "mask": ("MASK", {"tooltip": "Mask used as alpha channel (alpha = mask)."}),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "to_rgba"
+    CATEGORY = "image/postprocessing"
+
+    def to_rgba(self, image: torch.Tensor, mask: torch.Tensor):
+        """
+        image: [B,H,W,3] float in [0,1]
+        mask:  [B,H,W] (or [H,W]) float in [0,1] used as alpha
+        returns RGBA image: [B,H,W,4] float in [0,1]
+        """
+        if image.ndim != 4 or image.shape[-1] != 3:
+            raise ValueError(f"Expected IMAGE tensor [B,H,W,3], got {tuple(image.shape)}")
+
+        # Normalize mask shape to [B,H,W]
+        if mask.ndim == 2:
+            mask = mask.unsqueeze(0)
+        elif mask.ndim == 3:
+            pass
+        else:
+            # Some pipelines may carry mask as [B,1,H,W]
+            if mask.ndim == 4 and mask.shape[1] == 1:
+                mask = mask[:, 0, :, :]
+            else:
+                raise ValueError(f"Expected MASK tensor [B,H,W] or [H,W], got {tuple(mask.shape)}")
+
+        b, h, w, _ = image.shape
+
+        # Batch align
+        if mask.shape[0] != b:
+            if mask.shape[0] == 1:
+                mask = mask.repeat(b, 1, 1)
+            else:
+                raise ValueError(f"Batch mismatch: image batch={b}, mask batch={mask.shape[0]}")
+
+        # Spatial align (resize mask to image resolution if needed)
+        if mask.shape[1] != h or mask.shape[2] != w:
+            mask_4d = mask.unsqueeze(1)  # [B,1,H,W]
+            mask_4d = torch.nn.functional.interpolate(mask_4d, size=(h, w), mode="nearest")
+            mask = mask_4d[:, 0, :, :]
+
+        mask = mask.float().clamp(0.0, 1.0)
+
+        # Default behavior (matches previous invert_mask=True path):
+        # alpha = mask
+        rgba = torch.cat([image, mask.unsqueeze(-1)], dim=-1)
+        return (rgba,)
+
 class Noise_EmptyNoise:
     def generate_noise(self, latent):
         return torch.zeros_like(latent["samples"])
@@ -481,6 +628,7 @@ class LanPaint_SamplerCustom:
                      "LanPaint_NumSteps": ("INT", {"default": 5, "min": 0, "max": 100, "tooltip": "Number of steps for Langevin dynamics, representing turns of thinking per step."}),
                      "LanPaint_PromptMode": (["Image First", "Prompt First"], {"tooltip": "Image First: prioritizes image quality; Prompt First: prioritizes prompt adherence."}),
                      "LanPaint_Info": ("STRING", {"default": "LanPaint Custom Sampler. For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star ⭐️!", "multiline": True}),
+                     "Inpainting_mode": (["🖼️ Image Inpainting", "🎬 Video Inpainting"], {"default": "🖼️ Image Inpainting", "tooltip": "Choose Image mode for photos or Video mode for video frames with temporal consistency"}),
                       }
                }
 
@@ -489,7 +637,7 @@ class LanPaint_SamplerCustom:
     FUNCTION = "sample"
     CATEGORY = "sampling/custom_sampling"
 
-    def sample(self, model, sampler, sigmas, add_noise, noise_seed, cfg, positive, negative, latent_image, LanPaint_NumSteps, LanPaint_PromptMode, LanPaint_Info=""):
+    def sample(self, model, sampler, sigmas, add_noise, noise_seed, cfg, positive, negative, latent_image, LanPaint_NumSteps, LanPaint_PromptMode, LanPaint_Info="",Inpainting_mode="🖼️ Image Inpainting"):
         model.LanPaint_StepSize = 0.2
         model.LanPaint_Lambda = 16.0
         model.LanPaint_Beta = 1.
@@ -500,6 +648,10 @@ class LanPaint_SamplerCustom:
             model.LanPaint_cfg_BIG = cfg
         else:
             model.LanPaint_cfg_BIG = 0 * cfg - 0.5
+        video_inpainting = (Inpainting_mode == "🎬 Video Inpainting")
+        if not hasattr(model, 'model_options') or model.model_options is None:
+            model.model_options = {}
+        model.model_options["video_inpainting"] = video_inpainting
         with override_sample_function():
             latent = latent_image.copy()
             latent_image = latent["samples"]
@@ -547,6 +699,7 @@ class LanPaint_SamplerCustomAdvanced:
                      "LanPaint_PromptMode": (["Image First", "Prompt First"], {"tooltip": "Image First: prioritizes image quality; Prompt First: prioritizes prompt adherence."}),
                      "LanPaint_EarlyStop": ("INT", {"default": 1, "min": 0, "max": 10000, "tooltip": "Steps to stop LanPaint early, preventing irregular patterns."}),
                      "LanPaint_Info": ("STRING", {"default": "LanPaint Custom Sampler Adv. For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star ⭐️!", "multiline": True}),
+                     "Inpainting_mode": (["🖼️ Image Inpainting", "🎬 Video Inpainting"], {"default": "🖼️ Image Inpainting", "tooltip": "Choose Image mode for photos or Video mode for video frames with temporal consistency"}),
                     }
                }
 
@@ -557,7 +710,7 @@ class LanPaint_SamplerCustomAdvanced:
 
     CATEGORY = "sampling/custom_sampling"
 
-    def sample(self, noise, guider, sampler, sigmas, latent_image, LanPaint_NumSteps, LanPaint_Lambda, LanPaint_StepSize, LanPaint_Beta, LanPaint_Friction, LanPaint_PromptMode, LanPaint_EarlyStop, LanPaint_Info=""):
+    def sample(self, noise, guider, sampler, sigmas, latent_image, LanPaint_NumSteps, LanPaint_Lambda, LanPaint_StepSize, LanPaint_Beta, LanPaint_Friction, LanPaint_PromptMode, LanPaint_EarlyStop, LanPaint_Info="",Inpainting_mode="🖼️ Image Inpainting"):
         model = guider.model_patcher
         model.LanPaint_StepSize = LanPaint_StepSize
         model.LanPaint_Lambda = LanPaint_Lambda
@@ -569,16 +722,25 @@ class LanPaint_SamplerCustomAdvanced:
             model.LanPaint_cfg_BIG = guider.cfg
         else:
             model.LanPaint_cfg_BIG = 0 * guider.cfg - 0.5
+        
+        video_inpainting = (Inpainting_mode == "🎬 Video Inpainting")
+        if not hasattr(model, 'model_options') or model.model_options is None:
+            model.model_options = {}
+        model.model_options["video_inpainting"] = video_inpainting
         with override_sample_function():
             latent = latent_image
             latent_image = latent["samples"]
+            print('before fix_empty_latent_channels latent_image shape',latent_image.shape)
             latent = latent.copy()
             latent_image = comfy.sample.fix_empty_latent_channels(guider.model_patcher, latent_image)
             latent["samples"] = latent_image
-
+            print('latent_image shape',latent_image.shape)
+            print('outside noise_mask',latent["noise_mask"].shape if "noise_mask" in latent else 'no noise_mask')
+            print('latent keys',latent.keys())
             noise_mask = None
             if "noise_mask" in latent:
                 noise_mask = latent["noise_mask"]
+                print('inside noise_mask shape',noise_mask.shape)
 
             x0_output = {}
             callback = latent_preview.prepare_callback(guider.model_patcher, sigmas.shape[-1] - 1, x0_output)
@@ -594,6 +756,7 @@ class LanPaint_SamplerCustomAdvanced:
                 out_denoised["samples"] = guider.model_patcher.model.process_latent_out(x0_output["x0"].cpu())
             else:
                 out_denoised = out
+            # print('output',out.keys(),out["samples"].shape,out['noise_mask'].shape)
             return (out, out_denoised)
 
 
@@ -605,6 +768,7 @@ NODE_CLASS_MAPPINGS = {
     "LanPaint_SamplerCustom" : LanPaint_SamplerCustom,
     "LanPaint_SamplerCustomAdvanced" : LanPaint_SamplerCustomAdvanced,
     "LanPaint_MaskBlend": MaskBlend,
+    "LanPaint_MaskBlendAlpha": MaskBlendAlpha,
 #    "LanPaint_UpSale_LatentNoiseMask": LanPaint_UpSale_LatentNoiseMask,
 }
 
@@ -615,5 +779,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LanPaint_SamplerCustom" : "LanPaint Sampler Custom",
     "LanPaint_SamplerCustomAdvanced" : "LanPaint Sampler Custom (Advanced)",
     "LanPaint_MaskBlend": "LanPaint Mask Blend",
+    "LanPaint_MaskBlendAlpha": "MaskBlend (alpha)",
 #    "LanPaint_UpSale_LatentNoiseMask": "LanPaint UpSale Latent Noise Mask"
 }
