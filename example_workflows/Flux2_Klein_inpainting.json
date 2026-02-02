@@ -96,9 +96,9 @@
       ],
       "title": "CLIP Text Encode (Negative Prompt)",
       "properties": {
+        "Node name for S&R": "CLIPTextEncode",
         "cnr_id": "comfy-core",
         "ver": "0.8.2",
-        "Node name for S&R": "CLIPTextEncode",
         "enableTabs": false,
         "tabWidth": 65,
         "tabXOffset": 10,
@@ -145,9 +145,9 @@
         }
       ],
       "properties": {
+        "Node name for S&R": "VAELoader",
         "cnr_id": "comfy-core",
         "ver": "0.8.2",
-        "Node name for S&R": "VAELoader",
         "models": [
           {
             "name": "flux2-vae.safetensors",
@@ -198,9 +198,9 @@
         }
       ],
       "properties": {
+        "Node name for S&R": "CLIPLoader",
         "cnr_id": "comfy-core",
         "ver": "0.8.2",
-        "Node name for S&R": "CLIPLoader",
         "models": [
           {
             "name": "qwen_3_4b.safetensors",
@@ -268,9 +268,9 @@
         }
       ],
       "properties": {
+        "Node name for S&R": "LanPaint_MaskBlend",
         "cnr_id": "LanPaint",
         "ver": "7b0d144db9aca6a4601e7c179b4c8103036e6e2b",
-        "Node name for S&R": "LanPaint_MaskBlend",
         "ue_properties": {
           "widget_ue_connectable": {
             "blend_overlap": true
@@ -315,9 +315,9 @@
         }
       ],
       "properties": {
+        "Node name for S&R": "ImageScaleToTotalPixels",
         "cnr_id": "comfy-core",
         "ver": "0.8.2",
-        "Node name for S&R": "ImageScaleToTotalPixels",
         "enableTabs": false,
         "tabWidth": 65,
         "tabXOffset": 10,
@@ -378,9 +378,9 @@
         }
       ],
       "properties": {
+        "Node name for S&R": "CFGGuider",
         "cnr_id": "comfy-core",
         "ver": "0.8.2",
-        "Node name for S&R": "CFGGuider",
         "enableTabs": false,
         "tabWidth": 65,
         "tabXOffset": 10,
@@ -423,9 +423,9 @@
         }
       ],
       "properties": {
+        "Node name for S&R": "KSamplerSelect",
         "cnr_id": "comfy-core",
         "ver": "0.8.2",
-        "Node name for S&R": "KSamplerSelect",
         "enableTabs": false,
         "tabWidth": 65,
         "tabXOffset": 10,
@@ -485,9 +485,9 @@
         }
       ],
       "properties": {
+        "Node name for S&R": "Flux2Scheduler",
         "cnr_id": "comfy-core",
         "ver": "0.8.2",
-        "Node name for S&R": "Flux2Scheduler",
         "enableTabs": false,
         "tabWidth": 65,
         "tabXOffset": 10,
@@ -544,9 +544,9 @@
         }
       ],
       "properties": {
+        "Node name for S&R": "VAEDecode",
         "cnr_id": "comfy-core",
         "ver": "0.8.2",
-        "Node name for S&R": "VAEDecode",
         "enableTabs": false,
         "tabWidth": 65,
         "tabXOffset": 10,
@@ -607,9 +607,9 @@
         }
       ],
       "properties": {
+        "Node name for S&R": "GetImageSize",
         "cnr_id": "comfy-core",
         "ver": "0.8.2",
-        "Node name for S&R": "GetImageSize",
         "enableTabs": false,
         "tabWidth": 65,
         "tabXOffset": 10,
@@ -623,7 +623,9 @@
           "input_ue_unconnectable": {}
         }
       },
-      "widgets_values": []
+      "widgets_values": [
+        "width: 1024, height: 1024\n batch size: 1"
+      ]
     },
     {
       "id": 115,
@@ -650,9 +652,9 @@
         }
       ],
       "properties": {
+        "Node name for S&R": "RandomNoise",
         "cnr_id": "comfy-core",
         "ver": "0.8.2",
-        "Node name for S&R": "RandomNoise",
         "enableTabs": false,
         "tabWidth": 65,
         "tabXOffset": 10,
@@ -711,9 +713,9 @@
         }
       ],
       "properties": {
+        "Node name for S&R": "EmptyFlux2LatentImage",
         "cnr_id": "comfy-core",
         "ver": "0.8.2",
-        "Node name for S&R": "EmptyFlux2LatentImage",
         "enableTabs": false,
         "tabWidth": 65,
         "tabXOffset": 10,
@@ -731,61 +733,6 @@
         1024,
         1024,
         1
-      ]
-    },
-    {
-      "id": 76,
-      "type": "LoadImage",
-      "pos": [
-        -540.3505464098968,
-        866.1188777911093
-      ],
-      "size": [
-        320,
-        470
-      ],
-      "flags": {},
-      "order": 6,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            204,
-            235
-          ]
-        },
-        {
-          "name": "MASK",
-          "type": "MASK",
-          "links": [
-            236
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.8.2",
-        "Node name for S&R": "LoadImage",
-        "enableTabs": false,
-        "tabWidth": 65,
-        "tabXOffset": 10,
-        "hasSecondTab": false,
-        "secondTabText": "Send Back",
-        "secondTabOffset": 80,
-        "secondTabWidth": 65,
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.1",
-          "input_ue_unconnectable": {}
-        },
-        "image": "clipspace/clipspace-painted-masked-1768666568593.png [input]"
-      },
-      "widgets_values": [
-        "clipspace/clipspace-painted-masked-1768666568593.png [input]",
-        "image"
       ]
     },
     {
@@ -855,35 +802,6 @@
       "widgets_values": []
     },
     {
-      "id": 141,
-      "type": "Note",
-      "pos": [
-        1429.5274498869105,
-        1709.8809080818844
-      ],
-      "size": [
-        352.7542257974378,
-        139.78283467403935
-      ],
-      "flags": {},
-      "order": 7,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [],
-      "properties": {
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.1",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        "Bypass reference conditioning if you don't need reference"
-      ],
-      "color": "#432",
-      "bgcolor": "#653"
-    },
-    {
       "id": 9,
       "type": "SaveImage",
       "pos": [
@@ -938,7 +856,7 @@
         82
       ],
       "flags": {},
-      "order": 8,
+      "order": 6,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -951,9 +869,9 @@
         }
       ],
       "properties": {
+        "Node name for S&R": "UNETLoader",
         "cnr_id": "comfy-core",
         "ver": "0.8.2",
-        "Node name for S&R": "UNETLoader",
         "models": [
           {
             "name": "lux-2-klein-base-4b-fp8.safetensors",
@@ -1087,9 +1005,9 @@
       ],
       "title": "CLIP Text Encode (Positive Prompt)",
       "properties": {
+        "Node name for S&R": "CLIPTextEncode",
         "cnr_id": "comfy-core",
         "ver": "0.8.2",
-        "Node name for S&R": "CLIPTextEncode",
         "enableTabs": false,
         "tabWidth": 65,
         "tabXOffset": 10,
@@ -1110,11 +1028,95 @@
       "bgcolor": "#353"
     },
     {
+      "id": 76,
+      "type": "LoadImage",
+      "pos": [
+        -540.3505464098968,
+        866.1188777911093
+      ],
+      "size": [
+        320,
+        470
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            204,
+            235
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [
+            236
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage",
+        "cnr_id": "comfy-core",
+        "ver": "0.8.2",
+        "enableTabs": false,
+        "tabWidth": 65,
+        "tabXOffset": 10,
+        "hasSecondTab": false,
+        "secondTabText": "Send Back",
+        "secondTabOffset": 80,
+        "secondTabWidth": 65,
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.1",
+          "input_ue_unconnectable": {}
+        },
+        "image": "clipspace/clipspace-painted-masked-1768666568593.png [input]"
+      },
+      "widgets_values": [
+        "clipspace-painted-masked-1768666568593.png",
+        "image"
+      ]
+    },
+    {
+      "id": 141,
+      "type": "Note",
+      "pos": [
+        1537.948078058678,
+        1731.9861154632674
+      ],
+      "size": [
+        352.7542257974378,
+        139.78283467403935
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.1",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "Bypass reference conditioning if you don't need reference"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
       "id": 121,
       "type": "LanPaint_SamplerCustomAdvanced",
       "pos": [
-        1382.1103339885312,
-        654.9043101611849
+        1381.2404031217425,
+        648.379755917492
       ],
       "size": [
         291.4830078125,
@@ -1165,9 +1167,9 @@
         }
       ],
       "properties": {
+        "Node name for S&R": "LanPaint_SamplerCustomAdvanced",
         "cnr_id": "LanPaint",
         "ver": "7b0d144db9aca6a4601e7c179b4c8103036e6e2b",
-        "Node name for S&R": "LanPaint_SamplerCustomAdvanced",
         "ue_properties": {
           "widget_ue_connectable": {},
           "version": "7.1",
@@ -1182,8 +1184,7 @@
         15,
         "Image First",
         1,
-        "LanPaint Custom Sampler Adv. For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star ⭐️!",
-        "🖼️ Image Inpainting"
+        "LanPaint Custom Sampler Adv. For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star ⭐️!"
       ]
     }
   ],
@@ -1618,9 +1619,9 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "ReferenceLatent",
               "cnr_id": "comfy-core",
               "ver": "0.8.2",
-              "Node name for S&R": "ReferenceLatent",
               "enableTabs": false,
               "tabWidth": 65,
               "tabXOffset": 10,
@@ -1678,9 +1679,9 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "VAEEncode",
               "cnr_id": "comfy-core",
               "ver": "0.8.2",
-              "Node name for S&R": "VAEEncode",
               "enableTabs": false,
               "tabWidth": 65,
               "tabXOffset": 10,
@@ -1738,9 +1739,9 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "ReferenceLatent",
               "cnr_id": "comfy-core",
               "ver": "0.8.2",
-              "Node name for S&R": "ReferenceLatent",
               "enableTabs": false,
               "tabWidth": 65,
               "tabXOffset": 10,
@@ -1985,9 +1986,9 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "VAEDecode",
               "cnr_id": "comfy-core",
               "ver": "0.3.71",
-              "Node name for S&R": "VAEDecode",
               "enableTabs": false,
               "tabWidth": 65,
               "tabXOffset": 10,
@@ -2052,9 +2053,9 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "GetImageSize",
               "cnr_id": "comfy-core",
               "ver": "0.7.0",
-              "Node name for S&R": "GetImageSize",
               "enableTabs": false,
               "tabWidth": 65,
               "tabXOffset": 10,
@@ -2121,9 +2122,9 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "ImageScale",
               "cnr_id": "comfy-core",
               "ver": "0.3.52",
-              "Node name for S&R": "ImageScale",
               "ue_properties": {
                 "widget_ue_connectable": {
                   "width": true,
@@ -2181,9 +2182,9 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "VAEEncode",
               "cnr_id": "comfy-core",
               "ver": "0.3.71",
-              "Node name for S&R": "VAEEncode",
               "enableTabs": false,
               "tabWidth": 65,
               "tabXOffset": 10,
@@ -2232,9 +2233,9 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "MaskToImage",
               "cnr_id": "comfy-core",
               "ver": "0.3.51",
-              "Node name for S&R": "MaskToImage",
               "ue_properties": {
                 "widget_ue_connectable": {},
                 "version": "7.1",
@@ -2282,9 +2283,9 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "SetLatentNoiseMask",
               "cnr_id": "comfy-core",
               "ver": "0.3.51",
-              "Node name for S&R": "SetLatentNoiseMask",
               "ue_properties": {
                 "widget_ue_connectable": {},
                 "version": "7.1",
@@ -2334,9 +2335,9 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "VAEEncode",
               "cnr_id": "comfy-core",
               "ver": "0.3.71",
-              "Node name for S&R": "VAEEncode",
               "enableTabs": false,
               "tabWidth": 65,
               "tabXOffset": 10,
@@ -2386,9 +2387,9 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "ImageToMask",
               "cnr_id": "comfy-core",
               "ver": "0.3.51",
-              "Node name for S&R": "ImageToMask",
               "ue_properties": {
                 "widget_ue_connectable": {},
                 "version": "7.1",
@@ -2451,9 +2452,9 @@
               }
             ],
             "properties": {
+              "Node name for S&R": "ImageScale",
               "cnr_id": "comfy-core",
               "ver": "0.3.52",
-              "Node name for S&R": "ImageScale",
               "ue_properties": {
                 "widget_ue_connectable": {
                   "width": true,
@@ -2644,7 +2645,7 @@
   },
   "config": {},
   "extra": {
-    "frontendVersion": "1.36.14",
+    "frontendVersion": "1.37.11",
     "workflowRendererVersion": "LG",
     "VHS_latentpreview": false,
     "VHS_latentpreviewrate": 0,
@@ -2653,10 +2654,10 @@
     "ue_links": [],
     "links_added_by_ue": [],
     "ds": {
-      "scale": 0.5209868481924392,
+      "scale": 0.6934334949441376,
       "offset": [
-        1631.6704319234877,
-        -51.438086793993506
+        -453.34680325511,
+        -421.81393627582696
       ]
     }
   },
