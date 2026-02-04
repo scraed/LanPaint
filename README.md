@@ -381,7 +381,7 @@ You need to follow the ComfyUI version of [SD 3.5 workflow](https://comfyui-wiki
 
 [View Workflow & Masks](https://github.com/scraed/LanPaint/tree/master/examples/Example_24)
 
-[Model Used in This Example](https://docs.comfy.org/zh-CN/tutorials/flux/flux-2-klein)
+[Model Used in This Example](https://docs.comfy.org/zh-CN/tutorials/flux/flux-2-klein). If you have quality problem on Comfy 0.11 and 0.12, check [this issue](https://github.com/scraed/LanPaint/issues/80).
 
 
 ### Example Flux: InPaint(LanPaint K Sampler, 5 steps of thinking)
