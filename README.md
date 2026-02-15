@@ -13,7 +13,13 @@
 
 Universally applicable inpainting ability for every model. LanPaint sampler lets the model "think" through multiple iterations before denoising, enabling you to invest more computation time for superior inpainting quality.  
 
-This is the official implementation of ["LanPaint: Training-Free Diffusion Inpainting with Asymptotically Exact and Fast Conditional Sampling"](https://arxiv.org/abs/2502.03491), accepted by TMLR. The repository is for ComfyUI extension. Local Python benchmark code is published here: [LanPaintBench](https://github.com/scraed/LanPaintBench).
+This is the official implementation of ["LanPaint: Training-Free Diffusion Inpainting with Asymptotically Exact and Fast Conditional Sampling"](https://arxiv.org/abs/2502.03491), accepted by TMLR. 
+
+The repository is for ComfyUI extension. 
+
+Diffusers Support: [LanPaint-Diffusers](https://github.com/charrywhite/LanPaint-diffusers) by [@charrywhite](https://github.com/charrywhite/)
+
+Benchmark code for paper reproduce: [LanPaintBench](https://github.com/scraed/LanPaintBench).
 
 ## Citation
 
