@@ -1,19 +1,19 @@
 {
   "id": "92112d97-bb64-4b44-86f2-ea5691ef8f6e",
   "revision": 0,
-  "last_node_id": 141,
-  "last_link_id": 252,
+  "last_node_id": 145,
+  "last_link_id": 257,
   "nodes": [
     {
       "id": 99,
       "type": "MarkdownNote",
       "pos": [
-        500,
-        680
+        500.0000198250468,
+        680.0000807313771
       ],
       "size": [
-        210,
-        88
+        224.984375,
+        94.8125
       ],
       "flags": {},
       "order": 0,
@@ -38,12 +38,12 @@
       "id": 97,
       "type": "MarkdownNote",
       "pos": [
-        -1257.789968845821,
-        803.5275371691753
+        -1257.7902502679706,
+        803.5277136709452
       ],
       "size": [
-        610,
-        650
+        609.96875,
+        802.046875
       ],
       "flags": {},
       "order": 1,
@@ -67,12 +67,12 @@
       "id": 112,
       "type": "CLIPTextEncode",
       "pos": [
-        361.4681372990097,
-        1043.0187170159304
+        361.4684044222454,
+        1043.0188767827499
       ],
       "size": [
-        430,
-        88
+        429.96875,
+        115.59375
       ],
       "flags": {},
       "order": 9,
@@ -122,12 +122,12 @@
       "id": 113,
       "type": "VAELoader",
       "pos": [
-        -68.53186060598445,
-        1032.8521075621834
+        -68.53191231927349,
+        1032.8521234810855
       ],
       "size": [
-        364.42708333333337,
-        58
+        364.40625,
+        82.25
       ],
       "flags": {},
       "order": 2,
@@ -176,12 +176,12 @@
       "id": 110,
       "type": "CLIPLoader",
       "pos": [
-        -68.53186060598445,
-        862.8520792606068
+        -68.53191231927349,
+        862.8520361231124
       ],
       "size": [
-        364.42708333333337,
-        106
+        364.40625,
+        116.90625
       ],
       "flags": {},
       "order": 3,
@@ -231,15 +231,15 @@
       "id": 136,
       "type": "LanPaint_MaskBlend",
       "pos": [
-        2130.366524646268,
-        843.6546003113864
+        2130.366247578418,
+        843.6549263914206
       ],
       "size": [
-        270,
-        98
+        269.96875,
+        151.578125
       ],
       "flags": {},
-      "order": 20,
+      "order": 23,
       "mode": 0,
       "inputs": [
         {
@@ -287,12 +287,12 @@
       "id": 114,
       "type": "ImageScaleToTotalPixels",
       "pos": [
-        -46.9677698074011,
-        1248.0941846161222
+        -534.5420627890505,
+        1497.0182171796296
       ],
       "size": [
-        270,
-        106
+        269.96875,
+        114.25
       ],
       "flags": {},
       "order": 11,
@@ -309,8 +309,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            198,
-            199
+            198
           ]
         }
       ],
@@ -332,7 +331,7 @@
         }
       },
       "widgets_values": [
-        "nearest-exact",
+        "area",
         1,
         1
       ]
@@ -341,12 +340,12 @@
       "id": 116,
       "type": "CFGGuider",
       "pos": [
-        1015.3697546367637,
-        818.5786518942696
+        1015.3702240314624,
+        818.5789143101345
       ],
       "size": [
-        270,
-        98
+        269.96875,
+        127.578125
       ],
       "flags": {},
       "order": 15,
@@ -402,12 +401,12 @@
       "id": 117,
       "type": "KSamplerSelect",
       "pos": [
-        1015.3697546367637,
-        958.5786930275832
+        1015.3702240314624,
+        958.5788904747618
       ],
       "size": [
-        270,
-        58
+        269.96875,
+        82.25
       ],
       "flags": {},
       "order": 4,
@@ -447,15 +446,15 @@
       "id": 118,
       "type": "Flux2Scheduler",
       "pos": [
-        1015.3697546367637,
-        1058.5786098492258
+        1015.3702240314624,
+        1058.5787503073384
       ],
       "size": [
-        270,
-        106
+        269.96875,
+        143.59375
       ],
       "flags": {},
-      "order": 16,
+      "order": 19,
       "mode": 0,
       "inputs": [
         {
@@ -511,15 +510,15 @@
       "id": 120,
       "type": "VAEDecode",
       "pos": [
-        1881.3770683600626,
-        748.1665033623689
+        1881.3772393614522,
+        748.1666531276135
       ],
       "size": [
-        220,
-        46
+        224.984375,
+        71.59375
       ],
       "flags": {},
-      "order": 19,
+      "order": 22,
       "mode": 0,
       "inputs": [
         {
@@ -566,21 +565,21 @@
       "id": 123,
       "type": "GetImageSize",
       "pos": [
-        499.83059550468477,
-        1243.3287212023115
+        499.83066050070784,
+        1243.3289695297192
       ],
       "size": [
-        187.5,
-        124
+        224.984375,
+        159.578125
       ],
       "flags": {},
-      "order": 14,
+      "order": 18,
       "mode": 0,
       "inputs": [
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 199
+          "link": 257
         }
       ],
       "outputs": [
@@ -623,20 +622,18 @@
           "input_ue_unconnectable": {}
         }
       },
-      "widgets_values": [
-        "width: 1024, height: 1024\n batch size: 1"
-      ]
+      "widgets_values": []
     },
     {
       "id": 115,
       "type": "RandomNoise",
       "pos": [
-        1015.3697546367637,
-        698.5786325108902
+        1015.3702240314624,
+        698.5788047570661
       ],
       "size": [
-        270,
-        82
+        269.96875,
+        81.984375
       ],
       "flags": {},
       "order": 5,
@@ -677,15 +674,15 @@
       "id": 119,
       "type": "EmptyFlux2LatentImage",
       "pos": [
-        769.262525556713,
-        1228.1103251340592
+        769.2627696518389,
+        1228.1102954406133
       ],
       "size": [
-        270,
-        106
+        269.96875,
+        143.59375
       ],
       "flags": {},
-      "order": 17,
+      "order": 20,
       "mode": 0,
       "inputs": [
         {
@@ -739,15 +736,15 @@
       "id": 135,
       "type": "f07d2d08-2bc5-4dd8-a9f0-f2347c6b5cca",
       "pos": [
-        4.154091859301728,
-        1721.4287401481058
+        4.1540046016198175,
+        1721.428845257751
       ],
       "size": [
-        196.265234375,
-        66
+        224.984375,
+        95.59375
       ],
       "flags": {},
-      "order": 12,
+      "order": 17,
       "mode": 0,
       "inputs": [
         {
@@ -763,7 +760,7 @@
         {
           "name": "mask",
           "type": "MASK",
-          "link": 236
+          "link": 256
         }
       ],
       "outputs": [
@@ -785,7 +782,8 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            239
+            239,
+            257
           ]
         }
       ],
@@ -805,15 +803,15 @@
       "id": 9,
       "type": "SaveImage",
       "pos": [
-        2549.2906717451565,
-        1036.4687385556058
+        2549.2912681843623,
+        1036.468767583056
       ],
       "size": [
-        416.6666666666667,
-        470
+        416.640625,
+        469.96875
       ],
       "flags": {},
-      "order": 21,
+      "order": 24,
       "mode": 0,
       "inputs": [
         {
@@ -848,12 +846,12 @@
       "id": 109,
       "type": "UNETLoader",
       "pos": [
-        -68.53186060598445,
-        712.8520626074891
+        -68.53191231927349,
+        712.8522463742471
       ],
       "size": [
-        364.42708333333337,
-        82
+        364.40625,
+        82.25
       ],
       "flags": {},
       "order": 6,
@@ -901,12 +899,12 @@
       "id": 122,
       "type": "6007e698-2ebd-4917-84d8-299b35d7b7ab",
       "pos": [
-        1160.6499310102483,
-        1732.0890781447288
+        1160.6501117293997,
+        1732.089234419206
       ],
       "size": [
-        240,
-        86
+        239.96875,
+        119.578125
       ],
       "flags": {},
       "order": 13,
@@ -976,12 +974,12 @@
       "id": 111,
       "type": "CLIPTextEncode",
       "pos": [
-        361.4681372990097,
-        713.0187167443823
+        361.4684044222454,
+        713.0188987599739
       ],
       "size": [
-        430,
-        230
+        429.96875,
+        229.96875
       ],
       "flags": {},
       "order": 10,
@@ -1031,12 +1029,12 @@
       "id": 76,
       "type": "LoadImage",
       "pos": [
-        -540.3505464098968,
-        866.1188777911093
+        -540.3506761646945,
+        866.1190933239891
       ],
       "size": [
-        320,
-        470
+        319.96875,
+        469.96875
       ],
       "flags": {},
       "order": 7,
@@ -1055,7 +1053,7 @@
           "name": "MASK",
           "type": "MASK",
           "links": [
-            236
+            253
           ]
         }
       ],
@@ -1075,10 +1073,10 @@
           "version": "7.1",
           "input_ue_unconnectable": {}
         },
-        "image": "clipspace/clipspace-painted-masked-1768666568593.png [input]"
+        "image": "clipspace/clipspace-painted-masked-1774261273383.png [input]"
       },
       "widgets_values": [
-        "clipspace-painted-masked-1768666568593.png",
+        "clipspace/clipspace-painted-masked-1774261273383.png [input]",
         "image"
       ]
     },
@@ -1086,12 +1084,12 @@
       "id": 141,
       "type": "Note",
       "pos": [
-        1537.948078058678,
-        1731.9861154632674
+        1537.9480481433275,
+        1731.986178116308
       ],
       "size": [
-        352.7542257974378,
-        139.78283467403935
+        352.734375,
+        139.75
       ],
       "flags": {},
       "order": 8,
@@ -1115,15 +1113,15 @@
       "id": 121,
       "type": "LanPaint_SamplerCustomAdvanced",
       "pos": [
-        1381.2404031217425,
-        648.379755917492
+        1381.2407872006597,
+        648.3798497502373
       ],
       "size": [
-        291.4830078125,
-        568
+        291.46875,
+        567.96875
       ],
       "flags": {},
-      "order": 18,
+      "order": 21,
       "mode": 0,
       "inputs": [
         {
@@ -1184,7 +1182,134 @@
         15,
         "Image First",
         1,
-        "LanPaint Custom Sampler Adv. For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star ⭐️!"
+        "LanPaint Custom Sampler Adv. For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star ⭐️!",
+        0,
+        1
+      ]
+    },
+    {
+      "id": 143,
+      "type": "MaskToImage",
+      "pos": [
+        -689.1065698766678,
+        1708.776864036909
+      ],
+      "size": [
+        224.984375,
+        47.59375
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 253
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            254
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MaskToImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 144,
+      "type": "ImageScaleToTotalPixels",
+      "pos": [
+        -717.8857994424104,
+        1851.2917884462472
+      ],
+      "size": [
+        269.953125,
+        114.25
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 254
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            255
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageScaleToTotalPixels",
+        "cnr_id": "comfy-core",
+        "ver": "0.8.2",
+        "enableTabs": false,
+        "tabWidth": 65,
+        "tabXOffset": 10,
+        "hasSecondTab": false,
+        "secondTabText": "Send Back",
+        "secondTabOffset": 80,
+        "secondTabWidth": 65,
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.1",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "nearest-exact",
+        1,
+        1
+      ]
+    },
+    {
+      "id": 145,
+      "type": "ImageToMask",
+      "pos": [
+        -239.66094136584218,
+        1936.3649935821113
+      ],
+      "size": [
+        269.578125,
+        82.25
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 255
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [
+            256
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageToMask"
+      },
+      "widgets_values": [
+        "red"
       ]
     }
   ],
@@ -1259,14 +1384,6 @@
       0,
       122,
       2,
-      "IMAGE"
-    ],
-    [
-      199,
-      114,
-      0,
-      123,
-      0,
       "IMAGE"
     ],
     [
@@ -1366,14 +1483,6 @@
       "IMAGE"
     ],
     [
-      236,
-      76,
-      1,
-      135,
-      2,
-      "MASK"
-    ],
-    [
       237,
       135,
       0,
@@ -1420,6 +1529,46 @@
       120,
       0,
       "LATENT"
+    ],
+    [
+      253,
+      76,
+      1,
+      143,
+      0,
+      "MASK"
+    ],
+    [
+      254,
+      143,
+      0,
+      144,
+      0,
+      "IMAGE"
+    ],
+    [
+      255,
+      144,
+      0,
+      145,
+      0,
+      "IMAGE"
+    ],
+    [
+      256,
+      145,
+      0,
+      135,
+      2,
+      "MASK"
+    ],
+    [
+      257,
+      135,
+      2,
+      123,
+      0,
+      "IMAGE"
     ]
   ],
   "groups": [
@@ -1470,8 +1619,8 @@
         "version": 1,
         "state": {
           "lastGroupId": 4,
-          "lastNodeId": 78,
-          "lastLinkId": 170,
+          "lastNodeId": 145,
+          "lastLinkId": 257,
           "lastRerouteId": 0
         },
         "revision": 0,
@@ -1578,7 +1727,7 @@
         "widgets": [],
         "nodes": [
           {
-            "id": 76,
+            "id": 142,
             "type": "ReferenceLatent",
             "pos": [
               170,
@@ -1591,17 +1740,17 @@
             "flags": {
               "collapsed": false
             },
-            "order": 0,
+            "order": 2,
             "mode": 0,
             "inputs": [
               {
-                "localized_name": "conditioning",
+                "localized_name": "条件",
                 "name": "conditioning",
                 "type": "CONDITIONING",
                 "link": 166
               },
               {
-                "localized_name": "latent",
+                "localized_name": "Latent",
                 "name": "latent",
                 "shape": 7,
                 "type": "LATENT",
@@ -1610,7 +1759,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "CONDITIONING",
+                "localized_name": "条件",
                 "name": "CONDITIONING",
                 "type": "CONDITIONING",
                 "links": [
@@ -1651,11 +1800,11 @@
             "flags": {
               "collapsed": false
             },
-            "order": 2,
+            "order": 1,
             "mode": 0,
             "inputs": [
               {
-                "localized_name": "pixels",
+                "localized_name": "像素",
                 "name": "pixels",
                 "type": "IMAGE",
                 "link": 167
@@ -1669,7 +1818,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "LATENT",
+                "localized_name": "Latent",
                 "name": "LATENT",
                 "type": "LATENT",
                 "links": [
@@ -1711,17 +1860,17 @@
             "flags": {
               "collapsed": false
             },
-            "order": 1,
+            "order": 0,
             "mode": 0,
             "inputs": [
               {
-                "localized_name": "conditioning",
+                "localized_name": "条件",
                 "name": "conditioning",
                 "type": "CONDITIONING",
                 "link": 165
               },
               {
-                "localized_name": "latent",
+                "localized_name": "Latent",
                 "name": "latent",
                 "shape": 7,
                 "type": "LATENT",
@@ -1730,7 +1879,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "CONDITIONING",
+                "localized_name": "条件",
                 "name": "CONDITIONING",
                 "type": "CONDITIONING",
                 "links": [
@@ -1764,7 +1913,7 @@
             "id": 163,
             "origin_id": 78,
             "origin_slot": 0,
-            "target_id": 76,
+            "target_id": 142,
             "target_slot": 1,
             "type": "LATENT"
           },
@@ -1788,7 +1937,7 @@
             "id": 166,
             "origin_id": -10,
             "origin_slot": 1,
-            "target_id": 76,
+            "target_id": 142,
             "target_slot": 0,
             "type": "CONDITIONING"
           },
@@ -1818,7 +1967,7 @@
           },
           {
             "id": 170,
-            "origin_id": 76,
+            "origin_id": 142,
             "origin_slot": 0,
             "target_id": -20,
             "target_slot": 1,
@@ -1835,9 +1984,9 @@
         "id": "f07d2d08-2bc5-4dd8-a9f0-f2347c6b5cca",
         "version": 1,
         "state": {
-          "lastGroupId": 3,
-          "lastNodeId": 134,
-          "lastLinkId": 235,
+          "lastGroupId": 4,
+          "lastNodeId": 145,
+          "lastLinkId": 257,
           "lastRerouteId": 0
         },
         "revision": 0,
@@ -1962,7 +2111,7 @@
             "mode": 0,
             "inputs": [
               {
-                "localized_name": "samples",
+                "localized_name": "Latent",
                 "name": "samples",
                 "type": "LATENT",
                 "link": 212
@@ -1976,7 +2125,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "IMAGE",
+                "localized_name": "图像",
                 "name": "IMAGE",
                 "type": "IMAGE",
                 "slot_index": 0,
@@ -2020,7 +2169,7 @@
             "mode": 0,
             "inputs": [
               {
-                "localized_name": "image",
+                "localized_name": "图像",
                 "name": "image",
                 "type": "IMAGE",
                 "link": 213
@@ -2028,7 +2177,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "width",
+                "localized_name": "宽度",
                 "name": "width",
                 "type": "INT",
                 "links": [
@@ -2037,7 +2186,7 @@
                 ]
               },
               {
-                "localized_name": "height",
+                "localized_name": "高度",
                 "name": "height",
                 "type": "INT",
                 "links": [
@@ -2046,7 +2195,7 @@
                 ]
               },
               {
-                "localized_name": "batch_size",
+                "localized_name": "批处理大小",
                 "name": "batch_size",
                 "type": "INT",
                 "links": []
@@ -2087,13 +2236,13 @@
             "mode": 0,
             "inputs": [
               {
-                "localized_name": "image",
+                "localized_name": "图像",
                 "name": "image",
                 "type": "IMAGE",
                 "link": 214
               },
               {
-                "localized_name": "width",
+                "localized_name": "宽度",
                 "name": "width",
                 "type": "INT",
                 "widget": {
@@ -2102,7 +2251,7 @@
                 "link": 215
               },
               {
-                "localized_name": "height",
+                "localized_name": "高度",
                 "name": "height",
                 "type": "INT",
                 "widget": {
@@ -2113,7 +2262,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "IMAGE",
+                "localized_name": "图像",
                 "name": "IMAGE",
                 "type": "IMAGE",
                 "links": [
@@ -2159,7 +2308,7 @@
             "mode": 0,
             "inputs": [
               {
-                "localized_name": "pixels",
+                "localized_name": "像素",
                 "name": "pixels",
                 "type": "IMAGE",
                 "link": 224
@@ -2173,7 +2322,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "LATENT",
+                "localized_name": "Latent",
                 "name": "LATENT",
                 "type": "LATENT",
                 "links": [
@@ -2216,7 +2365,7 @@
             "mode": 0,
             "inputs": [
               {
-                "localized_name": "mask",
+                "localized_name": "遮罩",
                 "name": "mask",
                 "type": "MASK",
                 "link": 225
@@ -2224,7 +2373,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "IMAGE",
+                "localized_name": "图像",
                 "name": "IMAGE",
                 "type": "IMAGE",
                 "links": [
@@ -2260,13 +2409,13 @@
             "mode": 0,
             "inputs": [
               {
-                "localized_name": "samples",
+                "localized_name": "Latent",
                 "name": "samples",
                 "type": "LATENT",
                 "link": 232
               },
               {
-                "localized_name": "mask",
+                "localized_name": "遮罩",
                 "name": "mask",
                 "type": "MASK",
                 "link": 222
@@ -2274,7 +2423,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "LATENT",
+                "localized_name": "Latent",
                 "name": "LATENT",
                 "type": "LATENT",
                 "links": [
@@ -2312,7 +2461,7 @@
             "mode": 0,
             "inputs": [
               {
-                "localized_name": "pixels",
+                "localized_name": "像素",
                 "name": "pixels",
                 "type": "IMAGE",
                 "link": 231
@@ -2326,7 +2475,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "LATENT",
+                "localized_name": "Latent",
                 "name": "LATENT",
                 "type": "LATENT",
                 "links": [
@@ -2369,7 +2518,7 @@
             "mode": 0,
             "inputs": [
               {
-                "localized_name": "image",
+                "localized_name": "图像",
                 "name": "image",
                 "type": "IMAGE",
                 "link": 217
@@ -2377,7 +2526,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "MASK",
+                "localized_name": "遮罩",
                 "name": "MASK",
                 "type": "MASK",
                 "links": [
@@ -2416,13 +2565,13 @@
             "mode": 0,
             "inputs": [
               {
-                "localized_name": "image",
+                "localized_name": "图像",
                 "name": "image",
                 "type": "IMAGE",
                 "link": 227
               },
               {
-                "localized_name": "width",
+                "localized_name": "宽度",
                 "name": "width",
                 "type": "INT",
                 "widget": {
@@ -2431,7 +2580,7 @@
                 "link": 218
               },
               {
-                "localized_name": "height",
+                "localized_name": "高度",
                 "name": "height",
                 "type": "INT",
                 "widget": {
@@ -2442,7 +2591,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "IMAGE",
+                "localized_name": "图像",
                 "name": "IMAGE",
                 "type": "IMAGE",
                 "links": [
@@ -2645,7 +2794,7 @@
   },
   "config": {},
   "extra": {
-    "frontendVersion": "1.37.11",
+    "frontendVersion": "1.41.21",
     "workflowRendererVersion": "LG",
     "VHS_latentpreview": false,
     "VHS_latentpreviewrate": 0,
@@ -2654,10 +2803,10 @@
     "ue_links": [],
     "links_added_by_ue": [],
     "ds": {
-      "scale": 0.6934334949441376,
+      "scale": 0.5131581182307074,
       "offset": [
-        -453.34680325511,
-        -421.81393627582696
+        1418.502992870643,
+        -459.60895936425936
       ]
     }
   },
