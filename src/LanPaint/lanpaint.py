@@ -27,6 +27,16 @@ class LanPaint():
         # Create a tuple with ':' for the first dimension and 'None' repeated num_nones times
         index = (slice(None),) + (0,) * (self.img_dim_size-1)
         return array[index]
+    def unpack_model_output(self, output):
+        # Some guider/model wrappers return one denoised latent, others return
+        # both the normal and BIG-guidance denoised latents.
+        if isinstance(output, (tuple, list)):
+            if len(output) >= 2:
+                return output[0], output[1]
+            if len(output) == 1:
+                return output[0], output[0]
+            raise ValueError("Model output is empty")
+        return output, output
     def __call__(self, x, latent_image, noise, sigma, latent_mask, current_times, model_options, seed, n_steps=None):
         self.img_dim_size = len(x.shape)
         self.latent_image = latent_image
@@ -104,7 +114,9 @@ class LanPaint():
         ############ LanPaint Iterations End ###############
         # out is x_0
 
-        out, _ = self.inner_model(x, sigma, model_options=model_options, seed=seed)
+        out, _ = self.unpack_model_output(
+            self.inner_model(x, sigma, model_options=model_options, seed=seed)
+        )
         out = out * (1-latent_mask) + self.latent_image * latent_mask
 
         input_x.copy_(x)
@@ -115,10 +127,14 @@ class LanPaint():
         if self.IS_FLUX or self.IS_FLOW:
             # compute t for flow model, with a small epsilon compensating for numerical error.
             x = x_t / ( abt**0.5 + (1-abt)**0.5 ) # switch to Gaussian flow matching
-            x_0, x_0_BIG = self.inner_model(x, self.remove_none_dims(tflow), model_options=model_options, seed=seed)
+            x_0, x_0_BIG = self.unpack_model_output(
+                self.inner_model(x, self.remove_none_dims(tflow), model_options=model_options, seed=seed)
+            )
         else:
             x = x_t * ( 1+sigma**2 )**0.5 # switch to variance exploding
-            x_0, x_0_BIG = self.inner_model(x, self.remove_none_dims(sigma), model_options=model_options, seed=seed)
+            x_0, x_0_BIG = self.unpack_model_output(
+                self.inner_model(x, self.remove_none_dims(sigma), model_options=model_options, seed=seed)
+            )
 
         score_x = -(x_t - x_0)
         score_y =  - (1 + lamb) * ( x_t - y )  + lamb * (x_t - x_0_BIG)  
