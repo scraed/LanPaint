@@ -69,7 +69,13 @@ If your inpainting results have wierd (glowing / broken) mask boundary, check th
 
 </div>
 
-Check our latest [Wan 2.2 Video Examples](#video-examples-beta), [Wan 2.2 Image Examples](#example-wan22-inpaintlanpaint-k-sampler-5-steps-of-thinking), and 
+**🎬 NEW: LanPaint now supports Anima!**
+
+| Original | Masked | Inpainted |
+|:--------:|:------:|:---------:|
+| ![Original Anima](https://github.com/scraed/LanPaint/blob/master/examples/Example_26/Original_No_Mask.png) | ![Masked Anima](https://github.com/scraed/LanPaint/blob/master/examples/Example_26/Masked_Load_Me_in_Loader.png) | ![Inpainted Anima](https://github.com/scraed/LanPaint/blob/master/examples/Example_26/InPainted_Drag_Me_to_ComfyUI.png) |
+
+Check our latest [Anima Example](#example-anima-inpaintlanpaint-k-sampler-5-steps-of-thinking), [Wan 2.2 Video Examples](#video-examples-beta), [Wan 2.2 Image Examples](#example-wan22-inpaintlanpaint-k-sampler-5-steps-of-thinking), and 
 [Qwen Image Edit 2509](#example-qwen-edit-2509-inpaint) support.
   
 
