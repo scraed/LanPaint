@@ -87,6 +87,7 @@ Check our latest [Wan 2.2 Video Examples](#video-examples-beta), [Wan 2.2 Image 
   - [Flux 2 klein](#example-flux-2-klein-inpaintlanpaint-k-sampler-2-steps-of-thinking)
   - [Z-image](#example-z-image-inpaintlanpaint-k-sampler-5-steps-of-thinking)
   - [Z-image-base](#example-z-image-base-inpaintlanpaint-k-sampler-3-steps-of-thinking)
+  - [Anima](#example-anima-inpaintlanpaint-k-sampler-5-steps-of-thinking)
   - [Hunyuan T2I](#example-hunyuan-t2i-inpaintlanpaint-k-sampler-5-steps-of-thinking)
   - [Wan 2.2 T2I](#example-wan22-inpaintlanpaint-k-sampler-5-steps-of-thinking)
   - [Wan 2.2 T2I with reference](#example-wan22-partial-inpaintlanpaint-k-sampler-5-steps-of-thinking)
@@ -109,7 +110,7 @@ Check our latest [Wan 2.2 Video Examples](#video-examples-beta), [Wan 2.2 Image 
 
 ## Features
 
-- **Universal Compatibility** – Works instantly with almost any model (**Z-image, Z-image-base, Hunyuan, Wan 2.2, Qwen Image/Edit, HiDream, SD 3.5, Flux-series, SDXL, SD 1.5 or custom LoRAs**) and ControlNet.  
+- **Universal Compatibility** – Works instantly with almost any model (**Z-image, Z-image-base, Hunyuan, Wan 2.2, Qwen Image/Edit, Anima, HiDream, SD 3.5, Flux-series, SDXL, SD 1.5 or custom LoRAs**) and ControlNet.  
 ![Inpainting Result 13](https://github.com/scraed/LanPaint/blob/master/examples/InpaintChara_13.jpg) 
 - **No Training Needed** – Works out of the box with your existing model.  
 - **Easy to Use** – Same workflow as standard ComfyUI KSampler.  
@@ -247,6 +248,22 @@ You need to follow the ComfyUI version of [Wan2.2 T2V workflow](https://docs.com
 **Note:** Vram is required by the model, not LanPaint. To further reduce VRAM requirements, we recommend generating less frames and loading CLIP on CPU.
 
 ## Image Examples
+
+### Example Anima: InPaint(LanPaint K Sampler, 5 steps of thinking)
+We are excited to announce that LanPaint now supports inpainting with the Anima text-to-image model.
+
+<details open>
+<summary>View Original / Masked / Inpainted Comparison</summary>
+
+| Original | Masked | Inpainted |
+|:--------:|:------:|:---------:|
+| ![Original Anima](https://github.com/scraed/LanPaint/blob/master/examples/Example_26/Original_No_Mask.png) | ![Masked Anima](https://github.com/scraed/LanPaint/blob/master/examples/Example_26/Masked_Load_Me_in_Loader.png) | ![Inpainted Anima](https://github.com/scraed/LanPaint/blob/master/examples/Example_26/InPainted_Drag_Me_to_ComfyUI.png) |
+
+</details>
+
+[View Workflow & Masks](https://github.com/scraed/LanPaint/tree/master/examples/Example_26)
+
+[Model Used in This Example](https://huggingface.co/circlestone-labs/Anima)
 
 ### Example Hunyuan T2I: InPaint(LanPaint K Sampler, 5 steps of thinking)
 We are excited to announce that LanPaint now supports inpainting with Hunyuan text to image generation.
@@ -515,6 +532,8 @@ Submit a PR to add your tutorial/video here, or open an [Issue](https://github.c
 [Working togather with crop&stitch](https://github.com/scraed/LanPaint/issues/46)
 
 ## Updates
+- 2026/05/20
+    - Add Anima inpainting and outpainting support (Example_26).
 - 2026/03/02
     - `v1.5.0`: Fixed a hidden bug that hurt performance and caused image blur (especially on `z-image-base`), and improved overall LanPaint performance on other models too.
 - 2026/01/30

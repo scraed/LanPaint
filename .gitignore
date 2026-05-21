@@ -100,3 +100,7 @@ cookiecutter-pypackage-env/
 *.code-workspace
 .vscode/
 /.vscode
+
+# Claude Code
+CLAUDE.md
+.claude/
