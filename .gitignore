@@ -104,3 +104,5 @@ cookiecutter-pypackage-env/
 # Claude Code
 CLAUDE.md
 .claude/
+.playwright-mcp/
+debug_screenshots/
