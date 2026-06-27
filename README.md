@@ -81,7 +81,13 @@ If your inpainting results have wierd (glowing / broken) mask boundary, check th
 |:--------:|:------:|:---------:|
 | ![Original Ideogram4](https://github.com/scraed/LanPaint/blob/master/examples/Example_27/Original_No_Mask.png) | ![Masked Ideogram4](https://github.com/scraed/LanPaint/blob/master/examples/Example_27/Masked_Load_Me_in_Loader.png) | ![Inpainted Ideogram4](https://github.com/scraed/LanPaint/blob/master/examples/Example_27/InPainted_Drag_Me_to_ComfyUI.png) |
 
-Check our latest [Ideogram4 Example](#example-ideogram4-inpaintlanpaint-custom-sampler-advanced-5-steps-of-thinking), [Anima Example](#example-anima-inpaintlanpaint-k-sampler-5-steps-of-thinking), [Wan 2.2 Video Examples](#video-examples-beta), [Wan 2.2 Image Examples](#example-wan22-inpaintlanpaint-k-sampler-5-steps-of-thinking), and 
+**🎬 NEW: LanPaint now supports Krea2!**
+
+| Original | Masked | Inpainted |
+|:--------:|:------:|:---------:|
+| ![Original Krea2](https://github.com/scraed/LanPaint/blob/master/examples/Example_28/Original_No_Mask.png) | ![Masked Krea2](https://github.com/scraed/LanPaint/blob/master/examples/Example_28/Masked_Load_Me_in_Loader.png) | ![Inpainted Krea2](https://github.com/scraed/LanPaint/blob/master/examples/Example_28/InPainted_Drag_Me_to_ComfyUI.png) |
+
+Check our latest [Krea2 Example](#example-krea2-inpaintlanpaint-k-sampler-3-steps-of-thinking), [Ideogram4 Example](#example-ideogram4-inpaintlanpaint-custom-sampler-advanced-5-steps-of-thinking), [Anima Example](#example-anima-inpaintlanpaint-k-sampler-5-steps-of-thinking), [Wan 2.2 Video Examples](#video-examples-beta), [Wan 2.2 Image Examples](#example-wan22-inpaintlanpaint-k-sampler-5-steps-of-thinking), and 
 [Qwen Image Edit 2509](#example-qwen-edit-2509-inpaint) support.
   
 
@@ -100,6 +106,7 @@ Check our latest [Ideogram4 Example](#example-ideogram4-inpaintlanpaint-custom-s
   - [Z-image](#example-z-image-inpaintlanpaint-k-sampler-5-steps-of-thinking)
   - [Z-image-base](#example-z-image-base-inpaintlanpaint-k-sampler-3-steps-of-thinking)
   - [Ideogram4](#example-ideogram4-inpaintlanpaint-custom-sampler-advanced-5-steps-of-thinking)
+  - [Krea2](#example-krea2-inpaintlanpaint-k-sampler-3-steps-of-thinking)
   - [Anima](#example-anima-inpaintlanpaint-k-sampler-5-steps-of-thinking)
   - [Hunyuan T2I](#example-hunyuan-t2i-inpaintlanpaint-k-sampler-5-steps-of-thinking)
   - [Wan 2.2 T2I](#example-wan22-inpaintlanpaint-k-sampler-5-steps-of-thinking)
@@ -123,7 +130,7 @@ Check our latest [Ideogram4 Example](#example-ideogram4-inpaintlanpaint-custom-s
 
 ## Features
 
-- **Universal Compatibility** – Works instantly with almost any model (**Ideogram4, Z-image, Z-image-base, Hunyuan, Wan 2.2, Qwen Image/Edit, Anima, HiDream, SD 3.5, Flux-series, SDXL, SD 1.5 or custom LoRAs**) and ControlNet.  
+- **Universal Compatibility** – Works instantly with almost any model (**Ideogram4, Krea2, Z-image, Z-image-base, Hunyuan, Wan 2.2, Qwen Image/Edit, Anima, HiDream, SD 3.5, Flux-series, SDXL, SD 1.5 or custom LoRAs**) and ControlNet.  
 ![Inpainting Result 13](https://github.com/scraed/LanPaint/blob/master/examples/InpaintChara_13.jpg) 
 - **No Training Needed** – Works out of the box with your existing model.  
 - **Easy to Use** – Same workflow as standard ComfyUI KSampler.  
@@ -356,6 +363,22 @@ LanPaint also supports inpainting with the Z-image-base model.
 
 Workflow template (JSON): [Z_image_base_Inpaint.json](https://github.com/scraed/LanPaint/blob/master/example_workflows/Z_image_base_Inpaint.json)
 
+### Example Krea2: InPaint(LanPaint K Sampler, 3 steps of thinking)
+We are excited to announce that LanPaint now supports inpainting with the Krea2 Turbo text-to-image model.
+
+<details open>
+<summary>View Original / Masked / Inpainted Comparison</summary>
+
+| Original | Masked | Inpainted |
+|:--------:|:------:|:---------:|
+| ![Original Krea2](https://github.com/scraed/LanPaint/blob/master/examples/Example_28/Original_No_Mask.png) | ![Masked Krea2](https://github.com/scraed/LanPaint/blob/master/examples/Example_28/Masked_Load_Me_in_Loader.png) | ![Inpainted Krea2](https://github.com/scraed/LanPaint/blob/master/examples/Example_28/InPainted_Drag_Me_to_ComfyUI.png) |
+
+</details>
+
+[View Workflow & Masks](https://github.com/scraed/LanPaint/tree/master/examples/Example_28)
+
+[Model Used in This Example](https://huggingface.co/Comfy-Org/Krea-2)
+
 ### Example Wan2.2: Partial InPaint(LanPaint K Sampler, 5 steps of thinking)
 Sometimes we don't want to inpaint completely new content, but rather let the inpainted image reference the original image. One option to achieve this is to inpaint with an edit model like Qwen Image Edit. Another option is to perform a partial inpaint: allowing the diffusion process to start at some middle steps rather than from 0.
 
@@ -562,6 +585,7 @@ Submit a PR to add your tutorial/video here, or open an [Issue](https://github.c
 
 ## Updates
 - 2026/06/27
+    - Add Krea2 inpainting support with LanPaint KSampler (Example_28).
     - Add Ideogram4 inpainting support with LanPaint Custom Sampler Advanced (Example_27).
 - 2026/05/20
     - Add Anima inpainting and outpainting support (Example_26).
