@@ -1,5 +1,5 @@
 import torch
-from .utils import StochasticHarmonicOscillator
+# from .utils import StochasticHarmonicOscillator  # second-order scheme, not used
 from functools import partial
 from .earlystop import LanPaintEarlyStopper
 from .types import LangevinState
@@ -20,9 +20,12 @@ class LanPaint():
         self.early_stop_hook = EarlyStopHook
 
     def add_none_dims(self, array):
-        # Create a tuple with ':' for the first dimension and 'None' repeated num_nones times
-        index = (slice(None),) + (None,) * (self.img_dim_size-1)
-        return array[index]
+        # Broadcast to the latent's dimensionality. Identical to the tuple-index
+        # form for scalar/[B] inputs; per-row (already broadcast) tensors pass
+        # through unchanged.
+        while array.ndim < self.img_dim_size:
+            array = array.unsqueeze(array.ndim)
+        return array
     def remove_none_dims(self, array):
         # Create a tuple with ':' for the first dimension and 'None' repeated num_nones times
         index = (slice(None),) + (0,) * (self.img_dim_size-1)
@@ -37,10 +40,13 @@ class LanPaint():
                 return output[0], output[0]
             raise ValueError("Model output is empty")
         return output, output
-    def __call__(self, x, latent_image, noise, sigma, latent_mask, current_times, model_options, seed, n_steps=None):
+    def __call__(self, x, latent_image, noise, sigma, latent_mask, current_times, model_options, seed, n_steps=None, current_times_audio=None, audio_indicator=None, audio_correction=None):
         self.img_dim_size = len(x.shape)
         self.latent_image = latent_image
         self.noise = noise
+        self.audio_indicator = audio_indicator
+        self.current_times_audio = current_times_audio
+        self.audio_correction = audio_correction
         if torch.mean(torch.abs(self.noise)) < 1e-8:
             self.noise = torch.randn_like(self.noise)
         if n_steps is None:
@@ -50,14 +56,36 @@ class LanPaint():
         input_x = x
         VE_Sigma, abt, Flow_t = current_times
 
+        # MiniMax H3 AV packs: the audio rows of the flat pack run on their own
+        # shifted sigma schedule (sigma_audio = time_shift_sigma(sigma_video,
+        # shift_v, shift_a)). Blend the per-stream times so every downstream
+        # consumer (x_t conversions, score, dynamics coefficients, replace
+        # step) uses the audio schedule on the audio rows and the video
+        # schedule elsewhere. Flow_t stays the video timestep -- the DiT
+        # derives the audio schedule from it internally.
+        replace_sigma = sigma
+        if self.audio_indicator is not None and self.current_times_audio is not None:
+            VE_a, abt_a, Flow_a = self.current_times_audio
+            ai = self.audio_indicator
+            VE_Sigma = VE_Sigma * (1 - ai) + VE_a * ai
+            abt = abt * (1 - ai) + abt_a * ai
+            replace_sigma = sigma * (1 - ai) + Flow_a * ai
+            current_times = (VE_Sigma, abt, Flow_t)
+
         step_size = self.step_size * (1 - abt)
         step_size = self.add_none_dims(step_size)
         # self.inner_model.inner_model.scale_latent_inpaint returns variance exploding x_t values
         # This is the replace step
         def scale_latent_inpaint(x, sigma, noise, latent_image):
-            return self.inner_model.inner_model.model_sampling.noise_scaling(sigma.reshape([sigma.shape[0]] + [1] * (len(noise.shape) - 1)), noise, latent_image)
+            s = self.add_none_dims(sigma)
+            if s.numel() == 1:
+                return self.inner_model.inner_model.model_sampling.noise_scaling(s, noise, latent_image)
+            # per-row (audio) sigma: model_sampling.noise_scaling requires a
+            # scalar sigma, so emulate its flow form elementwise
+            ns = getattr(self.inner_model.inner_model.model_sampling, "noise_scale", 1.0)
+            return s * (ns * noise) + (1.0 - s) * latent_image
 
-        x = x * (1 - latent_mask) +  scale_latent_inpaint(x=x, sigma=sigma, noise=self.noise, latent_image=self.latent_image)* latent_mask
+        x = x * (1 - latent_mask) +  scale_latent_inpaint(x=x, sigma=replace_sigma, noise=self.noise, latent_image=self.latent_image)* latent_mask
 
         if IS_FLUX or IS_FLOW:
             x_t = x * ( self.add_none_dims(abt)**0.5 + (1-self.add_none_dims(abt))**0.5 )
@@ -136,8 +164,17 @@ class LanPaint():
                 self.inner_model(x, self.remove_none_dims(sigma), model_options=model_options, seed=seed)
             )
 
+        if getattr(self, "audio_correction", None) is not None:
+            # The flat-grid model output for the audio rows is the slope-scaled
+            # velocity estimate, which overshoots the true denoised audio by
+            # sigma_v*slope/sigma_a. Pull the Langevin target back to the true
+            # audio denoised: x0_true = x + c*(x0_flat - x), c = 1 on video rows
+            # (video is untouched).
+            x_0 = x + self.audio_correction * (x_0 - x)
+            x_0_BIG = x + self.audio_correction * (x_0_BIG - x)
+
         score_x = -(x_t - x_0)
-        score_y =  - (1 + lamb) * ( x_t - y )  + lamb * (x_t - x_0_BIG)  
+        score_y =  - (1 + lamb) * ( x_t - y )  + lamb * (x_t - x_0_BIG)
         return score_x * (1 - mask) + score_y * mask
     def sigma_x(self, abt):
         # the time scale for the x_t update
@@ -169,20 +206,22 @@ class LanPaint():
         A = A_x * (1-mask) + A_y * mask
         D = D_x * (1-mask) + D_y * mask
         dt = dtx * (1-mask) + dty * mask
-        Gamma = Gamma_x * (1-mask) + Gamma_y * mask
+        # Gamma = Gamma_x * (1-mask) + Gamma_y * mask  # only used by the disabled second-order scheme
 
         def Coef_C(x_t):
             x0 = x_t + score(x_t)
             C = (abt**0.5 * x0  - x_t )/ (1-abt) + A * x_t
             return C, x0
-        def advance_time(x_t, v, dt, Gamma, A, C, D):
-            dtype = x_t.dtype
-            with torch.autocast(device_type=x_t.device.type, dtype=torch.float32):
-                osc = StochasticHarmonicOscillator(Gamma, A, C, D )
-                x_t, v = osc.dynamics(x_t, v, dt )
-            x_t = x_t.to(dtype)
-            v = v.to(dtype)
-            return x_t, v
+        # Second-order damped-oscillator update (position + velocity via
+        # StochasticHarmonicOscillator) -- kept for reference, not used.
+        # def advance_time(x_t, v, dt, Gamma, A, C, D):
+        #     dtype = x_t.dtype
+        #     with torch.autocast(device_type=x_t.device.type, dtype=torch.float32):
+        #         osc = StochasticHarmonicOscillator(Gamma, A, C, D )
+        #         x_t, v = osc.dynamics(x_t, v, dt )
+        #     x_t = x_t.to(dtype)
+        #     v = v.to(dtype)
+        #     return x_t, v
 
         def advance_time_overdamped(x_t, dt, A, C, D):
             """
@@ -208,21 +247,23 @@ class LanPaint():
                 x_t = mean + noise
             return x_t.to(dtype)
 
-        def run_damped(x_t, args):
-            if args is None:
-                v = None
-                C, x0 = Coef_C(x_t)
-                x_t, v = advance_time(x_t, v, dt, Gamma, A, C, D)
-            else:
-                v = args.v
-                C = args.C
-                x_t, v = advance_time(x_t, v, dt/2, Gamma, A, C, D)
-                C_new, x0 = Coef_C(x_t)
-                v = v + Gamma**0.5 * ( C_new - C) *dt
-                x_t, v = advance_time(x_t, v, dt/2, Gamma, A, C, D)
-                C = C_new
-            # args is (v, C, x0) for the next inner step.
-            return x_t, LangevinState(v, C, x0)
+        # Second-order damped-oscillator scheme (position + velocity) -- kept
+        # for reference, not used.
+        # def run_damped(x_t, args):
+        #     if args is None:
+        #         v = None
+        #         C, x0 = Coef_C(x_t)
+        #         x_t, v = advance_time(x_t, v, dt, Gamma, A, C, D)
+        #     else:
+        #         v = args.v
+        #         C = args.C
+        #         x_t, v = advance_time(x_t, v, dt/2, Gamma, A, C, D)
+        #         C_new, x0 = Coef_C(x_t)
+        #         v = v + Gamma**0.5 * ( C_new - C) *dt
+        #         x_t, v = advance_time(x_t, v, dt/2, Gamma, A, C, D)
+        #         C = C_new
+        #     # args is (v, C, x0) for the next inner step.
+        #     return x_t, LangevinState(v, C, x0)
 
         def run_overdamped(x_t, args):
             if args is None:
@@ -238,18 +279,11 @@ class LanPaint():
             # args is (v, C, x0); v is None in the overdamped fallback.
             return x_t, LangevinState(None, C, x0)
 
-        try:
-            x_t_next, state = run_damped(x_t, args)
+        # Only the first-order (overdamped) scheme is used; the second-order
+        # damped-oscillator scheme is kept commented out above.
+        x_t, state = run_overdamped(x_t, args)
 
-            v_next = state.v
-            if torch.isnan(x_t_next).any() or (v_next is not None and torch.isnan(v_next).any()):
-                raise ValueError("NaN detected")
-
-            x_t = x_t_next
-        except Exception:
-            x_t, state = run_overdamped(x_t, args)
-
-        # args is (v, C, x0); v can be None if we fell back to the overdamped update.
+        # args is (v, C, x0); v is always None in the overdamped scheme.
         return x_t, state
 
     def prepare_step_size(self, current_times, step_size, sigma_x, sigma_y):

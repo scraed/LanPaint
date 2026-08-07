@@ -137,6 +137,7 @@ Check our latest [Krea2 Example](#example-krea2-inpaintlanpaint-k-sampler-3-step
 - **Flexible Masking** – Supports any mask shape, size, or position for inpainting/outpainting.  
 - **No Workarounds** – Generates 100% new content (no blending or smoothing) without relying on partial denoising.  
 - **Beyond Inpainting** – You can even use it as a simple way to generate consistent characters. 
+- **Video Mask Editor** – Paint per-frame inpainting masks directly on a video inside ComfyUI (`LanPaint_VideoMaskEditor`): pick the video file, open the editor, paint masks on keyframes, and the masks in between are interpolated automatically with a live preview. Mask = 1 regenerates, 0 keeps.
 
 **Warning**: LanPaint has degraded performance on distillation models, such as Flux.dev, due to a similar [issue with LORA training](https://medium.com/@zhiwangshi28/why-flux-lora-so-hard-to-train-and-how-to-overcome-it-a0c70bc59eaf). Please use low flux guidance (1.0-2.0) to mitigate this [issue](https://github.com/scraed/LanPaint/issues/30).
 

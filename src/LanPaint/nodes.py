@@ -1,3 +1,5 @@
+import json
+import os
 from contextlib import contextmanager
 import math
 # import nodes.py
@@ -10,7 +12,39 @@ from comfy.samplers import *
 from comfy.model_base import ModelType
 from .lanpaint import LanPaint
 from comfy.model_base import WAN22
-import comfyui_version 
+import comfyui_version
+
+try:
+    import torchaudio
+except ImportError:  # torchaudio may be absent in CI/stub environments
+    torchaudio = None
+
+try:
+    from comfy.ldm.minimax.model import time_shift_sigma, time_shift_slope
+except Exception:  # not present in stub/CI environments
+    time_shift_sigma = None
+    time_shift_slope = None
+
+
+def _detect_minimax_h3_audio(model_patcher, model_options, latent_shapes):
+    """Detect a MiniMax H3 AV pack: a nested (video, audio) latent whose audio
+    stream rides on a shifted sigma schedule. The diffusion model's own
+    sigma_shift_video/sigma_shift_audio attributes mark the H3 schedule
+    machinery; every other model keeps the plain video-schedule dynamics.
+    Returns (latent_shapes, shift_v, shift_a) or None."""
+    if latent_shapes is None or len(latent_shapes) < 2:
+        return None
+    model = getattr(model_patcher, "model", None)
+    diff_model = getattr(model, "diffusion_model", None)
+    shift_v = getattr(diff_model, "sigma_shift_video", None)
+    shift_a = getattr(diff_model, "sigma_shift_audio", None)
+    if shift_v is None or shift_a is None:
+        return None
+    # MiniMaxH3SigmaShift overrides live in transformer_options
+    topts = model_options.get("transformer_options", {}) if isinstance(model_options, dict) else {}
+    shift_v = topts.get("minimax_h3_sigma_shift_video", shift_v)
+    shift_a = topts.get("minimax_h3_sigma_shift_audio", shift_a)
+    return (latent_shapes, float(shift_v), float(shift_a))
 
 def _version_tuple(value):
     return tuple(int(part) if part.isdigit() else 0 for part in value.split("."))
@@ -26,7 +60,20 @@ def reshape_mask(input_mask, output_shape,video_inpainting=False):
     print('input_mask.ndim:', input_mask.ndim, 'output_shape len:', len(output_shape))
 
     # Handle input mask dimensions
-    if input_mask.ndim == 2:
+    if video_inpainting and input_mask.ndim == 3:
+        # per-frame video mask [F, H, W] -> (1, 1, F, H, W) (frames at dim 2)
+        input_mask = input_mask.unsqueeze(0).unsqueeze(1)
+    elif input_mask.ndim == 1 and len(output_shape) == 4:
+        # audio mask [F] at video frame rate -> the audio latent's token grid:
+        # nearest-exact along time, then expanded to the (ch=2, tokens) layout
+        f, t = input_mask.shape[0], output_shape[-1]
+        input_mask = torch.nn.functional.interpolate(
+            input_mask.float().unsqueeze(0).unsqueeze(0),
+            size=(t,),
+            mode="nearest-exact",
+        )
+        input_mask = input_mask.expand(1, 1, output_shape[-2], t)
+    elif input_mask.ndim == 2:
         input_mask = input_mask.unsqueeze(0).unsqueeze(0)
     elif input_mask.ndim == 3:
         input_mask = input_mask.unsqueeze(1)
@@ -36,29 +83,35 @@ def reshape_mask(input_mask, output_shape,video_inpainting=False):
         if COMFYUI_VERSION_060_OR_NEWER:
             input_mask = input_mask.unsqueeze(2)  # (B, C, 1, H, W)
 
-    # Handle video case with temporal dimension
     if video_inpainting:  # Video case: (batch, channels, frames, height, width)
+        ## legacy comfy < 0.6.0: frames-at-batch [F, 1, H, W] -> (1, 1, F, H, W)
+        if not COMFYUI_VERSION_060_OR_NEWER and input_mask.ndim == 4:
+            input_mask = input_mask.permute(1, 0, 2, 3).unsqueeze(0)
+
+        # Temporal union: a latent token covers ~4 video frames (the VAE's
+        # nominal temporal stride), and a token-level mask is all-or-nothing
+        # (binarized at 0.5 downstream). Averaging the frames into a token
+        # (trilinear) can erase sparse temporal strokes entirely; instead the
+        # token takes the UNION (max) of its ~4 frames - it regenerates iff
+        # any of them is painted. The last window is partial.
+        if input_mask.shape[2] > 4:
+            f = input_mask.shape[2]
+            n_win = (f + 3) // 4
+            pooled = torch.zeros(
+                (input_mask.shape[0], input_mask.shape[1], n_win, input_mask.shape[3], input_mask.shape[4]),
+                dtype=input_mask.dtype, device=input_mask.device)
+            for i in range(n_win):
+                pooled[:, :, i] = input_mask[:, :, i * 4 : (i + 1) * 4].amax(dim=2)
+            input_mask = pooled
+
         target_frames = output_shape[2]
         target_height, target_width = output_shape[-2:]
 
-        print('Video case - input_mask initial shape:', input_mask.shape)
-
-        # First reshape input_mask to have proper dimensions for video processing
-        # Assume input is (frames, channels, height, width) -> (1, channels, frames, height, width)
-        ## if comfy version < 0.6.0
-        if not COMFYUI_VERSION_060_OR_NEWER:
-            input_mask = input_mask.permute(1, 0, 2, 3).unsqueeze(0)
-        print('Video case - input_mask after reshaping:', input_mask.shape)
-        # Ensure we have the correct 5D shape: (batch, channels, frames, height, width)
-        batch_size, channels, frames, height, width = input_mask.shape
-        print('Video case - dimensions: batch_size={}, channels={}, frames={}, height={}, width={}'.format(batch_size, channels, frames, height, width))
-        print('Video case - target size:', (target_frames, target_height, target_width))
-
         # 3D nearest-exact interpolation: (batch, channels, frames, height, width) -> (batch, channels, target_frames, target_height, target_width)
         temp_mask = torch.nn.functional.interpolate(
-            input_mask, 
-            size=(target_frames, target_height, target_width), 
-            mode=scale_mode, 
+            input_mask,
+            size=(target_frames, target_height, target_width),
+            mode=scale_mode,
         )
 
         # temp_mask is already 5D: (batch, channels, target_frames, target_height, target_width)
@@ -109,9 +162,17 @@ class CFGGuider_LanPaint:
             print("WAN22 detected")
             self.inner_model.extra_conds = super(WAN22, self.inner_model).extra_conds
 
+        # MiniMax H3 AV packs carry an audio stream on a shifted sigma schedule;
+        # the paint loop needs the per-stream times only for that exact model
+        self.minimax_h3_audio = _detect_minimax_h3_audio(
+            self.model_patcher, self.model_options, kwargs.get("latent_shapes", None))
+
         if denoise_mask is not None:
             video_inpainting = self.model_options.get("video_inpainting", False)
-            denoise_mask = prepare_mask(denoise_mask, noise.shape, device, video_inpainting)
+            if tuple(denoise_mask.shape) != tuple(noise.shape):
+                # mask arrives already prepared to the latent shape (per-stream for
+                # nested AV latents, packed flat); only re-reshape when it differs
+                denoise_mask = prepare_mask(denoise_mask, noise.shape, device, video_inpainting)
 
         noise = noise.to(device)
         latent_image = latent_image.to(device)
@@ -138,6 +199,8 @@ class KSamplerX0Inpaint:
     def __init__(self, model, sigmas):
         self.inner_model = model
         self.sigmas = sigmas
+        self.audio_indicator = None  # [1, 1, N] flat pack: 1 on audio rows (MiniMax H3 only)
+        self.audio_shifts = None  # (shift_video, shift_audio) for the audio sigma schedule
         #self.model_sigmas = torch.cat( (torch.tensor([0.], device = sigmas.device) , torch.tensor( self.inner_model.model_patcher.get_model_object("model_sampling").sigmas, device = sigmas.device) ) )
         #self.model_sigmas = torch.tensor( self.model_sigmas, dtype = self.sigmas.dtype )
     def __call__(self, x, sigma, denoise_mask, model_options={}, seed=None,**kwargs):
@@ -161,9 +224,32 @@ class KSamplerX0Inpaint:
 
 
         else:
-            VE_Sigma = sigma 
+            VE_Sigma = sigma
             abt = 1/( 1+VE_Sigma**2 )
             Flow_t = (1-abt)**0.5 / ( (1-abt)**0.5 + abt**0.5  )
+
+        # MiniMax H3 audio stream runs on its own shifted sigma schedule:
+        # sigma_audio = time_shift_sigma(sigma_video, shift_video, shift_audio).
+        # The paint loop needs these per-stream times so the audio rows evolve
+        # at their own noise level instead of the video's.
+        current_times_audio = None
+        audio_correction = None
+        if self.audio_indicator is not None and self.audio_shifts is not None and time_shift_sigma is not None:
+            shift_v, shift_a = self.audio_shifts
+            Flow_a = time_shift_sigma(Flow_t, shift_v, shift_a)
+            abt_a = (1 - Flow_a)**2 / ((1 - Flow_a)**2 + Flow_a**2)
+            VE_a = Flow_a / (1 - Flow_a)
+            current_times_audio = (VE_a, abt_a, Flow_a)
+            # The flat-grid model output for the audio rows is the slope-scaled
+            # velocity estimate, which overshoots the true denoised audio. The
+            # Langevin target correction: x0_true = x + c*(x0_flat - x) with
+            # c = sigma_a / (sigma_v * slope_a) on audio rows, 1 on video rows.
+            ft = float(Flow_t)
+            c = 1.0
+            if ft > 1e-4 and time_shift_slope is not None:
+                slope_a = time_shift_slope(Flow_t, shift_v, shift_a)
+                c = float(Flow_a) / (ft * float(slope_a))
+            audio_correction = (1.0 - self.audio_indicator) + c * self.audio_indicator
 
         if denoise_mask is not None:
             if "denoise_mask_function" in model_options:
@@ -178,9 +264,9 @@ class KSamplerX0Inpaint:
             total_steps = len(self.sigmas)-1
 
             if total_steps - current_step <= self.LanPaint_early_stop:
-                out = self.PaintMethod(x, self.latent_image, self.noise, sigma, latent_mask, current_times, model_options, seed, n_steps=0)
+                out = self.PaintMethod(x, self.latent_image, self.noise, sigma, latent_mask, current_times, model_options, seed, n_steps=0, current_times_audio=current_times_audio, audio_indicator=self.audio_indicator, audio_correction=audio_correction)
             else:
-                out = self.PaintMethod(x, self.latent_image, self.noise, sigma, latent_mask, current_times, model_options, seed)
+                out = self.PaintMethod(x, self.latent_image, self.noise, sigma, latent_mask, current_times, model_options, seed, current_times_audio=current_times_audio, audio_indicator=self.audio_indicator, audio_correction=audio_correction)
         else:
             out, _ = self.inner_model(x, sigma, model_options=model_options, seed=seed)
 
@@ -220,7 +306,18 @@ class KSAMPLER(comfy.samplers.KSAMPLER):
             model_wrap.cfg_BIG = model_wrap.model_patcher.LanPaint_cfg_BIG
         noise = model_wrap.inner_model.model_sampling.noise_scaling(sigmas[0], noise, latent_image, self.max_denoise(model_wrap, sigmas))
 
-        model_k.PaintMethod = LanPaint(model_k.inner_model, 
+        # MiniMax H3 AV pack: mark the audio rows of the flat pack so the paint
+        # loop can apply the audio's own shifted sigma schedule to them
+        audio_layout = getattr(model_wrap, "minimax_h3_audio", None)
+        if audio_layout is not None and time_shift_sigma is not None:
+            latent_shapes, shift_v, shift_a = audio_layout
+            video_n = math.prod(latent_shapes[0][1:])
+            audio_indicator = torch.zeros(noise.shape, dtype=torch.float32, device=noise.device)
+            audio_indicator[..., video_n:] = 1.0
+            model_k.audio_indicator = audio_indicator
+            model_k.audio_shifts = (shift_v, shift_a)
+
+        model_k.PaintMethod = LanPaint(model_k.inner_model,
                                        model_wrap.model_patcher.LanPaint_NumSteps,
                                        model_wrap.model_patcher.LanPaint_Friction,
                                        model_wrap.model_patcher.LanPaint_Lambda,
@@ -259,9 +356,21 @@ def override_sample_function():
     original_sample = comfy.samplers.KSAMPLER.sample
     comfy.samplers.KSAMPLER.sample = KSAMPLER.sample
 
+    # Route the stock per-stream mask prep (inside CFGGuider.sample) through
+    # our prepare_mask so video masks get the temporal-union aggregation
+    # (window-4 max + nearest-exact) from reshape_mask. 5D targets (video)
+    # use the union path; everything else keeps the existing behavior.
+    original_prepare_mask = comfy.sampler_helpers.prepare_mask
+
+    def _prepare_mask_with_union(noise_mask, shape, device):
+        return prepare_mask(noise_mask, shape, device, video_inpainting=(len(shape) == 5))
+
+    comfy.sampler_helpers.prepare_mask = _prepare_mask_with_union
+
     try:
         yield
     finally:
+        comfy.sampler_helpers.prepare_mask = original_prepare_mask
         comfy.samplers.KSAMPLER.sample = original_sample
         comfy.samplers.CFGGuider.predict_noise = original_predict_noise
         comfy.samplers.CFGGuider.outer_sample = original_outer_sample
@@ -626,6 +735,190 @@ class LanPaint_SamplerCustomAdvanced:
             return (out, out_denoised)
 
 
+class LanPaint_MiniMaxAudioEncode:
+    """MiniMax H3 audio encode.
+
+    The sd.VAE wrapper expects channels-last audio ([B, L, C]) and converts
+    internally, so the waveform is transposed exactly like ComfyUI's generic
+    VAEEncodeAudio. This node adds mono->stereo upmixing on top. Audio
+    inpainting masks are no longer handled here: the video mask editor
+    produces the audio mask, which the workflow attaches to this latent with
+    SetLatentNoiseMask.
+    """
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "audio": ("AUDIO", {"tooltip": "The audio track to encode (resampled to the VAE's rate if needed)."}),
+                "vae": ("VAE", {"tooltip": "The MiniMax H3 audio VAE."}),
+            },
+        }
+
+    RETURN_TYPES = ("LATENT",)
+    RETURN_NAMES = ("latent",)
+    FUNCTION = "encode"
+    CATEGORY = "audio"
+    DESCRIPTION = "Encode audio with the MiniMax H3 audio VAE (correct layout). Audio inpainting masks come from the video mask editor via SetLatentNoiseMask."
+
+    def encode(self, audio, vae):
+        waveform = audio["waveform"]  # [B, C, L]
+        sample_rate = audio["sample_rate"]
+        vae_sr = getattr(vae, "audio_sample_rate", 32000)
+        if vae_sr != sample_rate:
+            if torchaudio is None:
+                raise RuntimeError("torchaudio is required to resample audio for the MiniMax H3 audio VAE")
+            waveform = torchaudio.functional.resample(waveform, sample_rate, vae_sr)
+        if waveform.shape[1] == 1:
+            waveform = waveform.expand(-1, 2, -1)  # mono -> stereo
+
+        # the sd.VAE wrapper takes channels-last audio and converts internally
+        z = vae.encode(waveform.movedim(1, -1))  # [B, 32, 2, T]
+        return ({"samples": z},)
+
+
+class LanPaint_MiniMaxAudioDecode:
+    """MiniMax H3 audio decode (wrapper returns channels-last [B, L, C]; this
+    node converts back to the ComfyUI [B, C, L] audio convention)."""
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "samples": ("LATENT", {"tooltip": "Audio latent, or a nested AV latent (the audio stream is decoded)."}),
+                "vae": ("VAE", {"tooltip": "The MiniMax H3 audio VAE."}),
+            },
+        }
+
+    RETURN_TYPES = ("AUDIO",)
+    RETURN_NAMES = ("audio",)
+    FUNCTION = "decode"
+    CATEGORY = "audio"
+    DESCRIPTION = "Decode a MiniMax H3 audio latent to a waveform."
+
+    def decode(self, samples, vae):
+        z = samples["samples"]
+        if getattr(z, "is_nested", False):
+            z = z.unbind()[-1]  # nested AV latent: take the audio stream
+        waveform = vae.decode(z).movedim(-1, 1)  # wrapper [B, L, C] -> ComfyUI [B, C, L]
+        sample_rate = getattr(vae, "audio_sample_rate_output", getattr(vae, "audio_sample_rate", 32000))
+        return ({"waveform": waveform, "sample_rate": sample_rate},)
+
+
+try:
+    from comfy_api.latest._input_impl.video_types import VideoFromFile
+except Exception:  # comfy_api unavailable (stub/CI env): video output disabled
+    VideoFromFile = None
+
+
+class LanPaint_VideoMaskEditor:
+    """Paint per-frame video masks and audio intervals on a video.
+
+    Works like a simple LoadVideo node: it returns the selected video file as
+    a VIDEO reference (no decoding) plus two masks. The video mask is a
+    per-frame [F, H, W] tensor painted in the mask editor: the frontend
+    ("Edit Video Mask" button) streams the same file and lets you paint masks
+    on keyframes; frames between keyframes get the SDF-morphed mask. Painted
+    keyframes are uploaded to the input folder as PNGs and their filenames are
+    recorded in the hidden ``keyframes`` widget as {"<frame_idx>": "<file>.png"}.
+
+    The audio mask is a [F] hard 0/1 tensor at video frame rate (1 = regenerate
+    that moment of the audio, 0 = keep), built from time intervals in seconds
+    recorded in the hidden ``audio_mask`` widget as [{"start": s, "end": e}].
+    The same editor displays the audio waveform and paints intervals; the
+    workflow attaches the mask to the audio latent (SetLatentNoiseMask) and the
+    sampler resamples it to the audio latent tokens.
+
+    Video mask convention: 1 = regenerate, 0 = keep. Both masks span the
+    video's full frame count (read from the file container, no pixel decoding).
+    """
+
+    @classmethod
+    def INPUT_TYPES(s):
+        try:
+            import folder_paths
+            import os as _os
+
+            input_dir = folder_paths.get_input_directory()
+            files = sorted(
+                f
+                for f in _os.listdir(input_dir)
+                if _os.path.isfile(_os.path.join(input_dir, f))
+                and f.lower().endswith(
+                    (".mp4", ".webm", ".mov", ".mkv", ".avi", ".m4v", ".gif")
+                )
+            )
+        except Exception:  # folder_paths unavailable (stub env): no options yet
+            files = []
+        return {
+            "required": {
+                "video": (files, {"image_upload": True, "tooltip": "Source video file. Returned as the video output and used by the mask editor preview."}),
+                "keyframes": ("STRING", {"default": "{}", "multiline": True, "tooltip": "Hidden: keyframe mask files {\"frame\": \"file.png\"}. Written by the mask editor."}),
+                "audio_mask": ("STRING", {"default": "[]", "multiline": True, "tooltip": "Hidden: audio inpainting intervals [{\"start\": s, \"end\": e}] in seconds. Written by the mask editor."}),
+            },
+        }
+
+    RETURN_TYPES = ("VIDEO", "MASK", "MASK")
+    RETURN_NAMES = ("video", "mask", "audio_mask")
+    FUNCTION = "run"
+    CATEGORY = "video"
+    DESCRIPTION = "Loads a video (like LoadVideo) and also outputs a per-frame video inpainting mask and a per-frame audio mask painted in the mask editor (1 = regenerate, 0 = keep)."
+
+    def run(self, video=None, keyframes="{}", audio_mask="[]"):
+        import folder_paths
+        from .videomask import interpolate_masks, load_keyframe_png, parse_keyframes_widget, resize_masks
+
+        if not video:
+            raise ValueError("select a video file in the node first")
+        if VideoFromFile is None:
+            raise RuntimeError("the video output requires the ComfyUI runtime (comfy_api)")
+        path = folder_paths.get_annotated_filepath(video)
+        vf = VideoFromFile(path)
+        count = int(vf.get_frame_count())
+        w, h = vf.get_dimensions()  # (width, height)
+
+        data = parse_keyframes_widget(keyframes)
+        loaded = {}
+        for idx, filename in data.items():
+            try:
+                path = folder_paths.get_annotated_filepath(filename)
+                if path and os.path.isfile(path):
+                    loaded[idx] = load_keyframe_png(path)
+            except Exception:
+                continue
+        if loaded:
+            seq = interpolate_masks(loaded, count)
+            seq = resize_masks(seq, (w, h))
+            out = torch.from_numpy(seq).float()
+        else:
+            # no keyframes (or all files missing): the mask stays empty
+            out = torch.zeros(count, h, w, dtype=torch.float32)
+
+        # audio mask: [F] hard 0/1 at video frame rate from intervals in seconds
+        # (get_fps was renamed get_frame_rate, returning a Fraction, in newer ComfyUI)
+        get_fps = getattr(vf, "get_fps", None)
+        fps = float(get_fps() if get_fps else vf.get_frame_rate())
+        audio_out = torch.zeros(count, dtype=torch.float32)
+        try:
+            intervals = json.loads(audio_mask) if isinstance(audio_mask, str) else audio_mask
+        except Exception:
+            intervals = []
+        if isinstance(intervals, list):
+            for it in intervals:
+                try:
+                    start = float(it.get("start", 0.0))
+                    end = float(it.get("end", 0.0))
+                except Exception:
+                    continue
+                if end > start:
+                    f0 = max(0, int(math.floor(start * fps)))
+                    f1 = min(count, int(math.ceil(end * fps)))
+                    if f1 > f0:
+                        audio_out[f0:f1] = 1.0
+
+        return (vf, out, audio_out)
+
+
 # A dictionary that contains all nodes you want to export with their names
 # NOTE: names should be globally unique
 NODE_CLASS_MAPPINGS = {
@@ -634,6 +927,9 @@ NODE_CLASS_MAPPINGS = {
     "LanPaint_SamplerCustom" : LanPaint_SamplerCustom,
     "LanPaint_SamplerCustomAdvanced" : LanPaint_SamplerCustomAdvanced,
     "LanPaint_MaskBlend": MaskBlend,
+    "LanPaint_MiniMaxAudioEncode": LanPaint_MiniMaxAudioEncode,
+    "LanPaint_MiniMaxAudioDecode": LanPaint_MiniMaxAudioDecode,
+    "LanPaint_VideoMaskEditor": LanPaint_VideoMaskEditor,
 #    "LanPaint_UpSale_LatentNoiseMask": LanPaint_UpSale_LatentNoiseMask,
 }
 
@@ -644,5 +940,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LanPaint_SamplerCustom" : "LanPaint Sampler Custom",
     "LanPaint_SamplerCustomAdvanced" : "LanPaint Sampler Custom (Advanced)",
     "LanPaint_MaskBlend": "LanPaint Mask Blend",
+    "LanPaint_MiniMaxAudioEncode": "LanPaint MiniMax Audio Encode",
+    "LanPaint_MiniMaxAudioDecode": "LanPaint MiniMax Audio Decode",
+    "LanPaint_VideoMaskEditor": "LanPaint Video Mask Editor",
 #    "LanPaint_UpSale_LatentNoiseMask": "LanPaint UpSale Latent Noise Mask"
 }
