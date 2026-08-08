@@ -1001,10 +1001,17 @@ def merge_video_with_mask(orig, inpainted, mask, blend_overlap):
     m = mask.float()
     if m.ndim == 4:  # [F, 1, H, W] from SetLatentNoiseMask
         m = m[:, 0]
-    count = min(orig.shape[0], inpainted.shape[0], m.shape[0])
+    elif m.ndim == 2:  # single image mask [H, W]
+        m = m.unsqueeze(0)
+    count = min(orig.shape[0], inpainted.shape[0])
     orig = orig[:count]
     inpainted = inpainted[:count]
-    m = m[:count] if m.shape[0] > 1 else m[:1].expand(count, -1, -1)
+    if m.shape[0] == 1:  # one mask frame covers every frame (image case)
+        m = m[:1].expand(count, -1, -1)
+    elif m.shape[0] < count:
+        raise ValueError("the mask has fewer frames than the image")
+    else:
+        m = m[:count]
     if tuple(m.shape[1:]) != tuple(orig.shape[1:3]):
         m = torch.nn.functional.interpolate(
             m.unsqueeze(1), size=orig.shape[1:3], mode="nearest-exact"
@@ -1157,6 +1164,110 @@ class LanPaint_AVDecode:
         )
 
 
+class LanPaint_ImageEncode:
+    """Encode an image and attach the inpainting mask to the latent.
+
+    Replaces the chain VAEEncode -> SetLatentNoiseMask (plus the manual
+    ImageScale of the mask) with one node. The mask is snapped to the latent's
+    actual spatial size (nearest-exact, the LanPaint mask convention), so
+    whatever the VAE's padding does, the mask always matches. Without a mask
+    this is a plain encode.
+    """
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": ("IMAGE", {"tooltip": "The image to encode (1 = regenerate region comes from the mask)."}),
+                "vae": ("VAE", {"tooltip": "The VAE."}),
+            },
+            "optional": {
+                "mask": ("MASK", {"tooltip": "Inpainting mask [H, W] (1 = regenerate, 0 = keep). Snapped to the latent size automatically."}),
+            },
+        }
+
+    RETURN_TYPES = ("LATENT",)
+    RETURN_NAMES = ("latent",)
+    FUNCTION = "encode"
+    CATEGORY = "image"
+    DESCRIPTION = "Encode an image and attach an inpainting mask to the latent (replaces VAEEncode + SetLatentNoiseMask)."
+
+    def encode(self, image, vae, mask=None):
+        z = vae.encode(image)
+        if len(z.shape) != 4:
+            raise ValueError(
+                "LanPaint_ImageEncode expects an image VAE (latent [B, C, H, W]); "
+                f"got a {len(z.shape)}D latent — use LanPaint_AVEncode for video."
+            )
+        latent = {"samples": z}
+        if mask is not None:
+            m = mask.float()
+            if m.ndim == 4:  # [1, 1, H, W] from SetLatentNoiseMask
+                m = m[0, 0]
+            elif m.ndim == 3:
+                m = m[0]
+            target = z.shape[-2:]
+            if tuple(m.shape) != target:
+                m = torch.nn.functional.interpolate(
+                    m.unsqueeze(0).unsqueeze(0), size=target, mode="nearest-exact"
+                )[0, 0]
+            latent["noise_mask"] = m.unsqueeze(0).unsqueeze(0)
+        return (latent,)
+
+
+class LanPaint_ImageDecode:
+    """Decode an inpainted latent and merge it with the original image.
+
+    Replaces the chain VAEDecode -> LanPaint_MaskBlend (plus the manual
+    ImageScale alignment) with one node. The decoded image is resized to the
+    original's exact dimensions (VAE decodes can round the size), then the
+    inpainted pixels replace the original only inside the mask, with a
+    MaskBlend-style boundary (``blend_overlap`` pixels). Without an image this
+    is a plain decode.
+    """
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "samples": ("LATENT", {"tooltip": "The inpainted latent to decode."}),
+                "vae": ("VAE", {"tooltip": "The VAE."}),
+            },
+            "optional": {
+                "image": ("IMAGE", {"tooltip": "The original image. When given, the decoded output is resized to its exact dimensions."}),
+                "mask": ("MASK", {"tooltip": "The inpainting mask (1 = take the inpainted pixels, 0 = keep the original)."}),
+                "blend_overlap": ("INT", {"default": 9, "min": 1, "max": 51, "step": 2, "tooltip": "Boundary blend width in pixels between the inpainted and original image (MaskBlend-style)."}),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "decode"
+    CATEGORY = "image"
+    DESCRIPTION = "Decode an inpainted latent, resize to the original image's exact dimensions, and merge with the original inside the mask (replaces VAEDecode + MaskBlend)."
+
+    def decode(self, samples, vae, image=None, mask=None, blend_overlap=9):
+        z = samples["samples"]
+        img = vae.decode(z)
+        if len(img.shape) == 5:  # [1, F, H, W, C]: combine batches (video-style VAE)
+            img = img.reshape(
+                -1, img.shape[-3], img.shape[-2], img.shape[-1]
+            )
+        if image is None:
+            return (img,)
+        target_h, target_w = image.shape[1], image.shape[2]
+        if tuple(img.shape[1:3]) != (target_h, target_w):
+            img = torch.nn.functional.interpolate(
+                img.movedim(-1, 1),
+                size=(target_h, target_w),
+                mode="bilinear",
+                align_corners=False,
+            ).movedim(1, -1)
+        if mask is None:
+            return (img,)
+        return (merge_video_with_mask(image, img, mask, blend_overlap),)
+
+
 # A dictionary that contains all nodes you want to export with their names
 # NOTE: names should be globally unique
 NODE_CLASS_MAPPINGS = {
@@ -1170,6 +1281,8 @@ NODE_CLASS_MAPPINGS = {
     "LanPaint_VideoMaskEditor": LanPaint_VideoMaskEditor,
     "LanPaint_AVEncode": LanPaint_AVEncode,
     "LanPaint_AVDecode": LanPaint_AVDecode,
+    "LanPaint_ImageEncode": LanPaint_ImageEncode,
+    "LanPaint_ImageDecode": LanPaint_ImageDecode,
 #    "LanPaint_UpSale_LatentNoiseMask": LanPaint_UpSale_LatentNoiseMask,
 }
 
@@ -1185,5 +1298,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LanPaint_VideoMaskEditor": "LanPaint Video Mask Editor",
     "LanPaint_AVEncode": "LanPaint AV Encode",
     "LanPaint_AVDecode": "LanPaint AV Decode",
+    "LanPaint_ImageEncode": "LanPaint Image Encode",
+    "LanPaint_ImageDecode": "LanPaint Image Decode",
 #    "LanPaint_UpSale_LatentNoiseMask": "LanPaint UpSale Latent Noise Mask"
 }

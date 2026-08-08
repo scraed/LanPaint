@@ -990,3 +990,117 @@ def test_js_python_mask_math_parity(tmp_path) -> None:
     assert max_diff < 1e-4, f"JS/Python soft masks diverge by {max_diff}"
     # the 0.5 level sets must be pixel-identical (what the sampler binarizes)
     assert np.array_equal(seq >= 0.5, js_data >= 0.5)
+
+
+# --- image encode/decode nodes (VAEEncode+SetLatentNoiseMask / VAEDecode+MaskBlend) ---
+
+def test_image_encode_attaches_mask_at_latent_size(monkeypatch, tmp_path) -> None:
+    nodes = _import_nodes(monkeypatch, tmp_path)
+
+    class FakeImageVAE:
+        def encode(self, x):
+            assert tuple(x.shape) == (1, 16, 24, 3)
+            return torch.zeros(1, 4, 2, 3)  # 16/8 x 24/8
+
+    mask = torch.zeros(16, 24)
+    mask[8:, 12:] = 1.0  # bottom-right quadrant
+    latent = nodes.LanPaint_ImageEncode().encode(
+        torch.zeros(1, 16, 24, 3), FakeImageVAE(), mask)[0]
+    assert latent["samples"].shape == (1, 4, 2, 3)
+    assert latent["noise_mask"].shape == (1, 1, 2, 3)  # snapped to the latent
+    assert latent["noise_mask"][0, 0, 1, 1] == 1.0  # (8,12)->(1,1) stays painted
+    assert latent["noise_mask"][0, 0, 0, 0] == 0.0
+
+
+def test_image_encode_without_mask_is_plain_encode(monkeypatch, tmp_path) -> None:
+    nodes = _import_nodes(monkeypatch, tmp_path)
+
+    class FakeImageVAE:
+        def encode(self, x):
+            return torch.zeros(1, 4, 2, 3)
+
+    latent = nodes.LanPaint_ImageEncode().encode(
+        torch.zeros(1, 16, 24, 3), FakeImageVAE())[0]
+    assert "noise_mask" not in latent
+
+
+def test_image_encode_accepts_3d_and_4d_masks(monkeypatch, tmp_path) -> None:
+    nodes = _import_nodes(monkeypatch, tmp_path)
+
+    class FakeImageVAE:
+        def encode(self, x):
+            return torch.zeros(1, 4, 2, 3)
+
+    m2 = torch.zeros(16, 24)
+    m2[8:, 12:] = 1.0
+    l1 = nodes.LanPaint_ImageEncode().encode(
+        torch.zeros(1, 16, 24, 3), FakeImageVAE(), m2)[0]
+    l2 = nodes.LanPaint_ImageEncode().encode(
+        torch.zeros(1, 16, 24, 3), FakeImageVAE(), m2.unsqueeze(0))[0]
+    l3 = nodes.LanPaint_ImageEncode().encode(
+        torch.zeros(1, 16, 24, 3), FakeImageVAE(), m2.unsqueeze(0).unsqueeze(0))[0]
+    assert torch.equal(l1["noise_mask"], l2["noise_mask"])
+    assert torch.equal(l1["noise_mask"], l3["noise_mask"])
+
+
+def test_image_encode_rejects_video_latent(monkeypatch, tmp_path) -> None:
+    nodes = _import_nodes(monkeypatch, tmp_path)
+
+    class VideoVAE:
+        def encode(self, x):
+            return torch.zeros(1, 24, 2, 2, 3)  # 5D: video VAE
+
+    with pytest.raises(ValueError, match="AVEncode"):
+        nodes.LanPaint_ImageEncode().encode(torch.zeros(1, 16, 24, 3), VideoVAE())
+
+
+def test_image_decode_resizes_and_merges(monkeypatch, tmp_path) -> None:
+    nodes = _import_nodes(monkeypatch, tmp_path)
+
+    class FakeDecodeVAE:
+        def decode(self, z):
+            assert z.shape == (1, 4, 2, 3)
+            return torch.full((1, 10, 12, 3), 0.9)  # different dims: VAE rounding
+
+    orig = torch.full((1, 16, 24, 3), 0.2)
+    mask = torch.zeros(16, 24)
+    mask[:, :12] = 1.0  # left half regenerated
+    out = nodes.LanPaint_ImageDecode().decode(
+        {"samples": torch.zeros(1, 4, 2, 3)}, FakeDecodeVAE(), orig, mask, 1)[0]
+    assert out.shape == (1, 16, 24, 3)
+    assert torch.allclose(out[0, :, :12], torch.full((16, 12, 3), 0.9))  # inpainted side
+    assert torch.allclose(out[0, :, 12:], torch.full((16, 12, 3), 0.2))  # original side
+
+
+def test_image_decode_combines_5d_output(monkeypatch, tmp_path) -> None:
+    nodes = _import_nodes(monkeypatch, tmp_path)
+
+    class FakeDecodeVAE:
+        def decode(self, z):
+            return torch.full((1, 2, 6, 8, 3), 0.7)  # [1, F, H, W, C]
+
+    orig = torch.full((2, 6, 8, 3), 0.2)
+    mask = torch.ones(6, 8)
+    out = nodes.LanPaint_ImageDecode().decode(
+        {"samples": torch.zeros(1, 4, 1, 1)}, FakeDecodeVAE(), orig, mask, 1)[0]
+    assert out.shape == (2, 6, 8, 3)  # frames combined before the merge
+    assert torch.allclose(out, torch.full((2, 6, 8, 3), 0.7))
+
+
+def test_image_decode_without_image_or_mask(monkeypatch, tmp_path) -> None:
+    nodes = _import_nodes(monkeypatch, tmp_path)
+
+    class FakeDecodeVAE:
+        def decode(self, z):
+            return torch.full((1, 10, 12, 3), 0.9)
+
+    # no image: plain decode, no resize
+    out = nodes.LanPaint_ImageDecode().decode(
+        {"samples": torch.zeros(1, 4, 2, 3)}, FakeDecodeVAE())[0]
+    assert out.shape == (1, 10, 12, 3)
+    # image but no mask: resized to the original dims, not merged
+    orig = torch.full((1, 16, 24, 3), 0.2)
+    out = nodes.LanPaint_ImageDecode().decode(
+        {"samples": torch.zeros(1, 4, 2, 3)}, FakeDecodeVAE(), orig)[0]
+    assert out.shape == (1, 16, 24, 3)
+    assert torch.allclose(out, torch.full((1, 16, 24, 3), 0.9))

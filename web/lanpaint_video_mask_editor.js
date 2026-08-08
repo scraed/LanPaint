@@ -155,6 +155,12 @@ function drawWaveform(canvas, peaks, duration, intervals, playhead) {
  * Measure a video's fps with requestVideoFrameCallback (Chromium);
  * fallback DEFAULT_FPS. rVFC only fires when a frame is presented, so each
  * measurement is preceded by a seek, and every await has a timeout fallback.
+ *
+ * The measurement spans ~80% of the duration (not a short window): a 1-second
+ * span has ±1 frame of uncertainty, so the editor and the node preview could
+ * round to different integers (e.g. 29 vs 30) and their frame grids drifted
+ * by a frame. Over the full duration the error is < 0.01 fps, so both
+ * sessions round to the same value as the container's real rate.
  */
 async function measureVideoFps(video) {
     if (typeof video.requestVideoFrameCallback !== "function") {
@@ -183,7 +189,8 @@ async function measureVideoFps(video) {
     try {
         await seeked(0.001); // force a frame presentation from a paused state
         const snap1 = await meta(800);
-        await seeked(Math.min(1.0, (video.duration || 1) / 2));
+        const dur = video.duration || 1;
+        await seeked(Math.min(dur - 0.2, Math.max(0.5, dur * 0.8)));
         const snap2 = await meta(800);
         if (snap1 && snap2) {
             const dt = snap2.mediaTime - snap1.mediaTime;
@@ -516,8 +523,11 @@ class VideoMaskEditor {
     async frameAt(index) {
         const cached = this.frameCache.get(index);
         if (cached) return cached;
+        // +1e-6 nudge: index/fps can round just below the frame boundary in
+        // float, and the browser presents the frame CONTAINING the time —
+        // without the nudge the seek can land on frame index-1.
         const target = Math.min(
-            index / this.fps,
+            index / this.fps + 1e-6,
             Math.max(0, (this.video.duration || 0) - 1e-3)
         );
         if (Math.abs(this.video.currentTime - target) >= 1e-4) {
@@ -983,12 +993,14 @@ class VideoMaskEditor {
     };
 
     _flash(message) {
+        const stage = this.el?.querySelector("#lpvme-stage");
+        if (!stage) return; // the editor may have been closed mid-save
         const div = document.createElement("div");
         div.textContent = message;
         div.style.cssText =
             "position:absolute;top:12px;left:50%;transform:translateX(-50%);" +
             "background:#2e7d32;color:#fff;padding:6px 14px;border-radius:4px;z-index:5;";
-        this.el.querySelector("#lpvme-stage").appendChild(div);
+        stage.appendChild(div);
         setTimeout(() => div.remove(), 1800);
     }
 }
@@ -1040,10 +1052,37 @@ class NodeMaskPreview {
         if (!this.overlayCanvas || this.overlayCanvas.parentElement !== container) {
             this.overlayCanvas = document.createElement("canvas");
             this.overlayCanvas.style.cssText =
-                "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;";
+                "position:absolute;top:0;left:0;pointer-events:none;";
             container.appendChild(this.overlayCanvas);
         }
         return container;
+    }
+
+    /**
+     * Pin the overlay to the video CONTENT's rendered rect. The video element
+     * fills its box with objectFit: contain, so when the box aspect ratio
+     * differs from the video's, the frames are letterboxed/centered — the
+     * overlay must follow that exact rect or the mask drifts. The box is the
+     * video element's own layout box (offsetWidth/Height, unaffected by the
+     * canvas zoom) — the framework may size it in px, so we never assume it.
+     * Recomputed every frame, so node drags/resizes stay aligned.
+     */
+    _syncOverlayRect() {
+        const container = this.node.videoContainer;
+        const video = container?.querySelector("video");
+        if (!container || !video || !this.overlayCanvas) return;
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+        const boxW = video.offsetWidth;
+        const boxH = video.offsetHeight;
+        if (!vw || !vh || !boxW || !boxH) return;
+        const scale = Math.min(boxW / vw, boxH / vh);
+        const w = vw * scale;
+        const h = vh * scale;
+        this.overlayCanvas.style.left = (boxW - w) / 2 + "px";
+        this.overlayCanvas.style.top = (boxH - h) / 2 + "px";
+        this.overlayCanvas.style.width = w + "px";
+        this.overlayCanvas.style.height = h + "px";
     }
 
     /** Pick up the built-in <video> and re-init the timeline when it changes. */
@@ -1199,9 +1238,12 @@ class NodeMaskPreview {
             this.overlayCanvas.width = this.timeline.width;
             this.overlayCanvas.height = this.timeline.height;
         }
+        // the browser presents frame floor(t*fps); round() mislabels the mask
+        // by one whenever the video pauses mid-frame. floor with an epsilon
+        // guard for float dust at exact frame times (t = I/fps * fps).
         const idx = Math.min(
             this.frameCount - 1,
-            Math.max(0, Math.round(video.currentTime * this.fps))
+            Math.max(0, Math.floor(video.currentTime * this.fps + 1e-6))
         );
         if (idx === this.lastMaskIdx) return; // nothing changed since last frame
         this.lastMaskIdx = idx;
@@ -1232,6 +1274,7 @@ class NodeMaskPreview {
         }
         const container = this._ensureOverlay();
         this._syncVideo();
+        this._syncOverlayRect();
         if (container) this._drawOverlay();
         this._ensureWaveform();
         this._syncWaveform();
