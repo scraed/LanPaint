@@ -1,5 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
+import { computeSDFEntry, MaskMorph } from "./lanpaint_mask_math.js";
 
 /**
  * LanPaint Video Mask Editor
@@ -150,128 +151,6 @@ function drawWaveform(canvas, peaks, duration, intervals, playhead) {
     }
 }
 
-/* ------------------------------------------------------------------ */
-/* interpolation preview (must mirror src/LanPaint/videomask.py)      */
-/* SDF level-set morphing with translation compensation:              */
-/*   d(p) = (1-w)*sdf_lo(p - w*D) + w*sdf_hi(p + (1-w)*D)             */
-/*   mask = sigmoid(d / 1.0)                                          */
-/* ------------------------------------------------------------------ */
-
-/** Exact 1D EDT (squared distances), Felzenszwalb-Huttenlocher, O(n). */
-function edt1DSq(f) {
-    const n = f.length;
-    const v = new Int32Array(n);
-    const z = new Float64Array(n + 1);
-    z[0] = -Infinity;
-    z[1] = Infinity;
-    let k = 0;
-    for (let q = 1; q < n; q++) {
-        const q2 = q * q;
-        let s;
-        for (;;) {
-            const vk = v[k];
-            s = (f[q] + q2 - (f[vk] + vk * vk)) / (2 * (q - vk));
-            if (s > z[k]) break;
-            k--;
-        }
-        k++;
-        v[k] = q;
-        z[k] = s;
-        z[k + 1] = Infinity;
-    }
-    const d = new Float64Array(n);
-    k = 0;
-    for (let q = 0; q < n; q++) {
-        while (z[k + 1] < q) k++;
-        const vk = v[k];
-        d[q] = f[vk] + (q - vk) * (q - vk);
-    }
-    return d;
-}
-
-/** Exact 2D EDT in place; f holds 0 at foreground, sentinel elsewhere. */
-function edt2D(f, w, h) {
-    const row = new Float64Array(w);
-    const col = new Float64Array(h);
-    for (let y = 0; y < h; y++) {
-        row.set(f.subarray(y * w, (y + 1) * w));
-        f.set(edt1DSq(row), y * w);
-    }
-    for (let x = 0; x < w; x++) {
-        for (let y = 0; y < h; y++) col[y] = f[y * w + x];
-        const d = edt1DSq(col);
-        for (let y = 0; y < h; y++) f[y * w + x] = Math.sqrt(Math.max(d[y], 0));
-    }
-    return f;
-}
-
-/**
- * Signed distance field of the alpha channel of a mask canvas.
- * Returns { field: Float64Array(w*h), cy, cx, hasShape } — positive inside.
- */
-function computeSDFEntry(alpha, w, h) {
-    const n = w * h;
-    const large = h * h + w * w + 1;
-    const sentinel = Math.max(w, h) / 2;
-    let any = false;
-    let all = true;
-    let sumY = 0;
-    let sumX = 0;
-    let count = 0;
-    let f = new Float64Array(n);
-    for (let i = 0; i < n; i++) {
-        const on = alpha[i * 4 + 3] >= 128;
-        if (on) {
-            any = true;
-            sumY += (i / w) | 0;
-            sumX += i % w;
-            count++;
-        } else {
-            all = false;
-        }
-        f[i] = on ? 0.0 : large;
-    }
-    if (!any) {
-        return { field: new Float64Array(n).fill(-sentinel), cy: 0, cx: 0, hasShape: false };
-    }
-    if (all) {
-        // Python's np.where mean for an all-true mask is the frame center
-        return {
-            field: new Float64Array(n).fill(sentinel),
-            cy: (h - 1) / 2,
-            cx: (w - 1) / 2,
-            hasShape: true
-        };
-    }
-    const dFg = edt2D(f, w, h);
-    f = new Float64Array(n);
-    for (let i = 0; i < n; i++) {
-        const on = alpha[i * 4 + 3] >= 128;
-        f[i] = on ? large : 0.0;
-    }
-    const dBg = edt2D(f, w, h);
-    const field = new Float64Array(n);
-    for (let i = 0; i < n; i++) field[i] = dBg[i] - dFg[i];
-    return { field, cy: sumY / count, cx: sumX / count, hasShape: true };
-}
-
-/** Shift a field by whole pixels; vacated pixels become 0. */
-function shiftField(field, w, h, dy, dx) {
-    const out = new Float64Array(w * h);
-    const srcY0 = Math.max(0, -dy);
-    const srcY1 = Math.min(h, h - dy);
-    const srcX0 = Math.max(0, -dx);
-    const srcX1 = Math.min(w, w - dx);
-    for (let y = srcY0; y < srcY1; y++) {
-        const srcRow = y * w;
-        const dstRow = (y + dy) * w;
-        for (let x = srcX0; x < srcX1; x++) {
-            out[dstRow + x + dx] = field[srcRow + x];
-        }
-    }
-    return out;
-}
-
 /**
  * Measure a video's fps with requestVideoFrameCallback (Chromium);
  * fallback DEFAULT_FPS. rVFC only fires when a frame is presented, so each
@@ -333,23 +212,13 @@ class MaskTimeline {
         this.height = 0;
         this.keyframes = new Map(); // idx -> mask canvas (mask in alpha)
         this.sdfCache = new Map();  // idx -> computed SDF entry
-        this._sigmoidLUT = this._buildSigmoidLUT();
+        this.morph = null;          // MaskMorph (shared math with the backend)
     }
 
     setSize(width, height) {
         this.width = width;
         this.height = height;
-    }
-
-    /** Sigmoid(x) on [-20, 20] quantized to 4096 entries (fast preview). */
-    _buildSigmoidLUT() {
-        const N = 4096;
-        const lut = new Float32Array(N);
-        for (let i = 0; i < N; i++) {
-            const x = -20 + (i * 40) / (N - 1);
-            lut[i] = 1 / (1 + Math.exp(-x));
-        }
-        return lut;
+        this.morph = new MaskMorph(width, height);
     }
 
     newMaskCanvas() {
@@ -388,7 +257,11 @@ class MaskTimeline {
         let entry = this.sdfCache.get(index);
         if (entry) return entry;
         const c = this.keyframes.get(index);
-        const alpha = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+        const data = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+        // the shared math expects a pure alpha array (n bytes), not RGBA
+        const n = c.width * c.height;
+        const alpha = new Uint8ClampedArray(n);
+        for (let i = 0; i < n; i++) alpha[i] = data[i * 4 + 3];
         entry = computeSDFEntry(alpha, c.width, c.height);
         this.sdfCache.set(index, entry);
         return entry;
@@ -413,40 +286,23 @@ class MaskTimeline {
         const hi = indices.find((i) => i >= index) ?? indices[indices.length - 1];
 
         // SDF morph between the neighboring keyframes, with translation
-        // compensation so a moving shape slides instead of collapsing
+        // compensation so a moving shape slides instead of collapsing. The
+        // math lives in lanpaint_mask_math.js and mirrors the backend's
+        // interpolate_masks exactly (same sigmoid, same shifts).
         const sdfLo = this._sdfFor(lo);
         const sdfHi = this._sdfFor(hi);
         const w = this.width;
         const h = this.height;
         const wf = (index - lo) / (hi - lo);
-        let sx1 = 0;
-        let sy1 = 0;
-        let sx2 = 0;
-        let sy2 = 0;
-        if (sdfLo.hasShape && sdfHi.hasShape) {
-            const dx = sdfHi.cx - sdfLo.cx;
-            const dy = sdfHi.cy - sdfLo.cy;
-            sx1 = Math.floor(wf * dx + 0.5);
-            sy1 = Math.floor(wf * dy + 0.5);
-            sx2 = Math.floor((1 - wf) * dx + 0.5);
-            sy2 = Math.floor((1 - wf) * dy + 0.5);
-        }
-        const f1 = shiftField(sdfLo.field, w, h, sy1, sx1);
-        const f2 = shiftField(sdfHi.field, w, h, -sy2, -sx2);
-        const lut = this._sigmoidLUT;
+        const vals = this.morph.frame(sdfLo, sdfHi, wf);
         const out = new ImageData(w, h);
         const n = w * h;
         for (let i = 0; i < n; i++) {
-            const d = (1 - wf) * f1[i] + wf * f2[i];
-            let alpha;
-            if (d <= -20) alpha = 0;
-            else if (d >= 20) alpha = 1;
-            else alpha = lut[Math.round((d + 20) * (4095 / 40))];
             const k = i * 4;
             out.data[k] = 255;
             out.data[k + 1] = 255;
             out.data[k + 2] = 255;
-            out.data[k + 3] = Math.round(alpha * 255);
+            out.data[k + 3] = Math.round(vals[i] * 255);
         }
         return out;
     }

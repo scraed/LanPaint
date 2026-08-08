@@ -68,6 +68,11 @@ _EDT_LARGE = None  # set per-call from the mask shape
 #: edge softness of the morph sigmoid, in pixels
 _MORPH_SOFTNESS = 1.0
 
+try:  # exact EDT at C speed; the pure-Python fallback is kept for CI/stubs
+    from scipy.ndimage import distance_transform_edt as _scipy_edt
+except ImportError:
+    _scipy_edt = None
+
 
 def _edt_1d_sq(f: np.ndarray) -> np.ndarray:
     """Exact 1D Euclidean distance transform (squared distances).
@@ -107,10 +112,15 @@ def _edt_1d_sq(f: np.ndarray) -> np.ndarray:
 def _edt_2d(mask_binary: np.ndarray) -> np.ndarray:
     """Exact 2D Euclidean distance transform of a bool mask (True = foreground).
 
-    Returns float64 [H, W] distances to the nearest foreground pixel. Two
-    passes of the 1D transform (rows then columns) yield exact squared 2D
-    distances; the final sqrt recovers the distance.
+    Returns float64 [H, W] distances to the nearest foreground pixel. Uses
+    scipy's C implementation when available (same exact distances, ~100x
+    faster than the pure-Python Felzenszwalb-Huttenlocher fallback, which is
+    kept for environments without scipy).
     """
+    if _scipy_edt is not None:
+        # scipy measures distance to the nearest ZERO of the input, so the
+        # mask is inverted to get the distance to the nearest foreground
+        return _scipy_edt(~mask_binary)
     h, w = mask_binary.shape
     large = float(h * h + w * w) + 1.0  # > any possible squared distance
     f = np.where(mask_binary, 0.0, large).astype(np.float64)

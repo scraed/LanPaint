@@ -929,3 +929,64 @@ def test_merge_audio_resamples_to_original_rate(monkeypatch, tmp_path) -> None:
     out = nodes.merge_audio_with_mask(orig, inp, am, 0.0, 32000, 24000)
     assert out.shape == (1, 2, 32000)  # at the original sample rate
     assert (out == 1.0).all()  # fully masked: everything from the inpainted track
+
+
+def test_scipy_edt_matches_python_fallback(monkeypatch) -> None:
+    import src.LanPaint.videomask as vm
+    if vm._scipy_edt is None:
+        pytest.skip("scipy not available")
+    rng = np.random.RandomState(7)
+    for (h, w) in [(40, 30), (65, 17), (8, 64)]:
+        m = rng.rand(h, w) > 0.6
+        fast = vm._edt_2d(m)
+        monkeypatch.setattr(vm, "_scipy_edt", None)
+        slow = vm._edt_2d(m)
+        assert np.allclose(fast, slow, atol=1e-9)
+
+
+# --- JS/Python mask-math parity (preview must equal the backend output) -------
+
+def test_js_python_mask_math_parity(tmp_path) -> None:
+    import json as _json
+    import shutil
+    import subprocess
+    from pathlib import Path
+
+    if shutil.which("node") is None:
+        pytest.skip("node not available")
+    from src.LanPaint.videomask import interpolate_masks
+
+    w, h, count = 48, 30, 60
+    empty = np.zeros((h, w), dtype=np.float32)
+    rect_l = np.zeros((h, w), dtype=np.float32)
+    rect_l[8:22, 2:12] = 1.0
+    rect_r = np.zeros((h, w), dtype=np.float32)
+    rect_r[8:22, 34:44] = 1.0
+    full = np.ones((h, w), dtype=np.float32)
+    kf = {0: empty, 12: rect_l, 30: rect_r, 50: full}
+
+    # the shared 8-bit contract: both sides start from the same alpha bytes
+    alphas = {idx: np.clip(np.round(v * 255), 0, 255).astype(np.uint8) for idx, v in kf.items()}
+    python_keys = {idx: alphas[idx].astype(np.float32) / 255.0 for idx in kf}
+
+    seq = interpolate_masks(python_keys, count)  # [count, h, w] float32
+
+    payload = {
+        "w": w, "h": h, "count": count,
+        "keyframes": {str(idx): a.ravel().tolist() for idx, a in alphas.items()},
+    }
+    inp = tmp_path / "keyframes.json"
+    inp.write_text(_json.dumps(payload), encoding="utf-8")
+    script = Path(__file__).parent / "parity_mask_math.mjs"
+    proc = subprocess.run(
+        ["node", str(script), str(inp)],
+        capture_output=True, text=True, timeout=120,
+    )
+    assert proc.returncode == 0, proc.stderr
+    js = _json.loads(proc.stdout)
+    js_data = np.asarray(js["data"], dtype=np.float32).reshape(count, h, w)
+
+    max_diff = float(np.abs(seq - js_data).max())
+    assert max_diff < 1e-4, f"JS/Python soft masks diverge by {max_diff}"
+    # the 0.5 level sets must be pixel-identical (what the sampler binarizes)
+    assert np.array_equal(seq >= 0.5, js_data >= 0.5)
