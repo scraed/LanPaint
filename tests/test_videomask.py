@@ -298,17 +298,35 @@ def _import_nodes(monkeypatch, tmp_path):
     comfy_model_base_mod.ModelType = types.SimpleNamespace(FLUX="FLUX", FLOW="FLOW")
     comfy_model_base_mod.WAN22 = type("WAN22", (), {})
 
+    comfy_nested_mod = types.ModuleType("comfy.nested_tensor")
+
+    class NestedTensor:
+        is_nested = True  # mirrors the real comfy.nested_tensor.NestedTensor
+
+        def __init__(self, tensors):
+            self.tensors = tuple(tensors)
+
+        def unbind(self):
+            return self.tensors
+
+        def __len__(self):
+            return len(self.tensors)
+
+    comfy_nested_mod.NestedTensor = NestedTensor
+
     comfyui_version_mod = types.ModuleType("comfyui_version")
     comfyui_version_mod.__version__ = "0.6.0"
 
     comfy_mod.utils = comfy_utils_mod
     comfy_mod.samplers = comfy_samplers_mod
     comfy_mod.model_base = comfy_model_base_mod
+    comfy_mod.nested_tensor = comfy_nested_mod
 
     monkeypatch.setitem(sys.modules, "comfy", comfy_mod)
     monkeypatch.setitem(sys.modules, "comfy.utils", comfy_utils_mod)
     monkeypatch.setitem(sys.modules, "comfy.samplers", comfy_samplers_mod)
     monkeypatch.setitem(sys.modules, "comfy.model_base", comfy_model_base_mod)
+    monkeypatch.setitem(sys.modules, "comfy.nested_tensor", comfy_nested_mod)
     monkeypatch.setitem(sys.modules, "folder_paths", folder_paths_mod)
     monkeypatch.setitem(sys.modules, "nodes", types.ModuleType("nodes"))
     monkeypatch.setitem(sys.modules, "latent_preview", types.ModuleType("latent_preview"))
@@ -562,3 +580,352 @@ def test_node_audio_fps_falls_back_to_get_frame_rate(monkeypatch, tmp_path) -> N
     # 24 fps: [1.0, 2.0]s covers frames 24..47
     assert (audio[24:48] == 1.0).all()
     assert (audio[:24] == 0.0).all() and (audio[48:] == 0.0).all()
+
+
+# --- AV encode node (video + audio in one latent, masks attached) ------------
+
+def test_av_encode_nests_latent_and_masks(monkeypatch, tmp_path) -> None:
+    nodes = _import_nodes(monkeypatch, tmp_path)
+
+    class FakeVideo:
+        def get_components(self):
+            return types.SimpleNamespace(
+                images=torch.zeros(8, 6, 4, 3),  # [F, H, W, C]
+                audio={"waveform": torch.zeros(1, 2, 100), "sample_rate": 32000},
+                frame_rate=None,
+            )
+
+    class FakeVideoVAE:
+        def encode(self, x):
+            assert tuple(x.shape) == (8, 6, 4, 3)
+            return torch.zeros(1, 24, 2, 3, 4)  # [B, C, T, H, W]
+
+    class FakeAudioVAE:
+        audio_sample_rate = 32000
+
+        def encode(self, x):
+            return torch.zeros(1, 32, 2, 5)  # [B, 32, ch, T]
+
+    video_mask = torch.zeros(8, 6, 4)
+    video_mask[3, 2, 2] = 1.0
+    audio_mask = torch.zeros(8)
+    audio_mask[5] = 1.0
+
+    out = nodes.LanPaint_AVEncode().encode(
+        FakeVideo(), FakeVideoVAE(), FakeAudioVAE(), video_mask, audio_mask)
+    latent = out[0]
+    assert latent["samples"].tensors[0].shape == (1, 24, 2, 3, 4)
+    assert latent["samples"].tensors[1].shape == (1, 32, 2, 5)
+    # per-stream masks ride inside the nested latent, unchanged
+    vmask, amask = latent["noise_mask"].tensors
+    assert torch.equal(vmask, video_mask)
+    assert torch.equal(amask, audio_mask)
+
+
+def test_av_encode_squeezes_2d_audio_mask(monkeypatch, tmp_path) -> None:
+    nodes = _import_nodes(monkeypatch, tmp_path)
+
+    class FakeVideo:
+        def get_components(self):
+            return types.SimpleNamespace(
+                images=torch.zeros(4, 2, 2, 3),
+                audio={"waveform": torch.zeros(1, 2, 50), "sample_rate": 32000},
+                frame_rate=None,
+            )
+
+    class FakeVideoVAE:
+        def encode(self, x):
+            return torch.zeros(1, 24, 1, 1, 1)
+
+    class FakeAudioVAE:
+        audio_sample_rate = 32000
+
+        def encode(self, x):
+            return torch.zeros(1, 32, 2, 2)
+
+    am2d = torch.zeros(4, 1)
+    am2d[2, 0] = 1.0
+    out = nodes.LanPaint_AVEncode().encode(
+        FakeVideo(), FakeVideoVAE(), FakeAudioVAE(),
+        torch.zeros(4, 2, 2), am2d)
+    amask = out[0]["noise_mask"].tensors[1]
+    assert amask.shape == (4,) and amask[2] == 1.0
+
+
+def test_av_encode_requires_audio_track(monkeypatch, tmp_path) -> None:
+    nodes = _import_nodes(monkeypatch, tmp_path)
+
+    class SilentVideo:
+        def get_components(self):
+            return types.SimpleNamespace(images=torch.zeros(2, 2, 2, 3), audio=None)
+
+    class FakeVideoVAE:
+        def encode(self, x):
+            return torch.zeros(1, 24, 1, 1, 1)
+
+    with pytest.raises(ValueError, match="no audio track"):
+        nodes.LanPaint_AVEncode().encode(
+            SilentVideo(), FakeVideoVAE(), None, torch.zeros(2, 2, 2), torch.zeros(2))
+
+
+# --- video mask via SetLatentNoiseMask ([F,1,H,W], frames at batch) ----------
+
+def test_union_4d_frames_at_batch_from_set_mask(monkeypatch, tmp_path) -> None:
+    nodes = _import_nodes(monkeypatch, tmp_path)
+    # SetLatentNoiseMask reshapes [F,H,W] -> [F,1,H,W]; frames are at batch
+    mask = torch.zeros(8, 1, 6, 8)
+    mask[3, 0, 2, 3] = 1.0  # window 0 (frames 0-3)
+    mask[5, 0, 4, 5] = 1.0  # window 1 (frames 4-7)
+    out = nodes.reshape_mask(mask, (1, 24, 2, 6, 8), video_inpainting=True)
+    assert out.shape == (1, 24, 2, 6, 8)
+    assert out[0, 0, 0, 2, 3] == 1.0  # window 0 union
+    assert out[0, 0, 1, 4, 5] == 1.0  # window 1 union
+    assert out[0, 0, 0].max() == 1.0 and out[0, 0, 1].max() == 1.0
+
+
+def test_union_4d_frames_at_batch_124_to_37(monkeypatch, tmp_path) -> None:
+    nodes = _import_nodes(monkeypatch, tmp_path)
+    mask = torch.zeros(124, 1, 864, 480)
+    mask[60, 0, 100:140, 100:140] = 1.0
+    out = nodes.reshape_mask(mask, (1, 24, 37, 30, 54), video_inpainting=True)
+    assert out.shape == (1, 24, 37, 30, 54)
+    assert out.max() == 1.0  # the painted frame is covered, not dropped
+    assert (out == 0.0).float().mean() > 0.95
+
+
+def test_audio_mask_4d_via_set_mask_shape(monkeypatch, tmp_path) -> None:
+    nodes = _import_nodes(monkeypatch, tmp_path)
+    # SetLatentNoiseMask reshapes [F,1] -> [1,1,F,1]
+    mask = torch.zeros(1, 1, 100, 1)
+    mask[0, 0, 50:60] = 1.0
+    out = nodes.reshape_mask(mask, (1, 32, 2, 40), video_inpainting=False)
+    assert out.shape == (1, 32, 2, 40)
+    assert (out == 0.0).float().mean() > 0.7
+    assert out[0, 0, 0, 20] == 1.0 and out[0, 0, 1, 20] == 1.0  # frame 50 -> token 20
+
+
+# --- AV decode node (merge inpainted video/audio with the original) ----------
+
+def _av_decode_fakes(nodes, frame_count=8, h=6, w=4, audio_sr=32000):
+    class FakeVideo:
+        def __init__(self):
+            self.frame_rate = None
+
+        def get_components(self):
+            return types.SimpleNamespace(
+                images=torch.zeros(frame_count, h, w, 3),
+                audio={"waveform": torch.zeros(1, 2, audio_sr // 4), "sample_rate": audio_sr},
+                frame_rate=None,
+            )
+
+        def get_frame_rate(self):
+            from fractions import Fraction
+            return Fraction(24, 1)
+
+        def get_bit_depth(self):
+            return 10
+
+    class FakeVideoVAE:
+        def decode(self, z):
+            return torch.zeros(frame_count, h, w, 3)  # [F, H, W, C]
+
+    class FakeAudioVAE:
+        audio_sample_rate = 32000
+
+        def decode(self, z):
+            return torch.zeros(1, z.shape[-1] * 200, 2)  # [B, L, C]
+
+    return FakeVideo(), FakeVideoVAE(), FakeAudioVAE()
+
+
+def test_av_decode_merges_and_uses_original_metadata(monkeypatch, tmp_path) -> None:
+    nodes = _import_nodes(monkeypatch, tmp_path)
+
+    class FakeVideoComponents:
+        def __init__(self, **kw):
+            self.images = kw["images"]
+            self.audio = kw["audio"]
+            self.frame_rate = kw["frame_rate"]
+
+    captured = {}
+
+    class FakeVideoFromComponents:
+        def __init__(self, components, bit_depth=None):
+            captured["components"] = components
+            captured["bit_depth"] = bit_depth
+
+    monkeypatch.setattr(nodes, "VideoComponents", FakeVideoComponents)
+    monkeypatch.setattr(nodes, "VideoFromComponents", FakeVideoFromComponents)
+
+    video, vvae, avae = _av_decode_fakes(nodes)
+    # paint a region in the "result" and mask it: the merge keeps the result
+    # inside the mask and the original outside
+    orig = video.get_components().images.clone()
+    result = torch.zeros_like(orig) + 0.9
+    vvae.decode = lambda z: result
+    avae.decode = lambda z: torch.zeros(1, 8000, 2)  # same length as the original
+    mask = torch.zeros(8, 6, 4)
+    mask[0, 1:3, 1:3] = 1.0
+
+    from fractions import Fraction
+    z = types.SimpleNamespace(unbind=lambda: (torch.zeros(1, 24, 2, 3, 4), torch.zeros(1, 32, 2, 5)))
+    out = nodes.LanPaint_AVDecode().decode(
+        {"samples": z}, video, vvae, avae, mask, torch.zeros(8),
+        blend_overlap=1, audio_crossfade=0.0)
+    merged = captured["components"].images
+    assert tuple(merged.shape) == (8, 6, 4, 3)
+    assert merged[0, 1, 1].max() > 0.85  # inside the mask: the inpainted result
+    assert merged[0, 5, 3].max() < 0.05  # outside: the original
+    assert captured["bit_depth"] == 10  # original bit depth
+    assert captured["components"].frame_rate == Fraction(24, 1)  # original fps
+    # the audio merged: mask all-zero -> original track unchanged
+    assert torch.equal(out[1]["waveform"], orig.new_zeros(1, 2, 8000).float())
+
+
+def test_av_decode_resizes_result_to_original_shape(monkeypatch, tmp_path) -> None:
+    nodes = _import_nodes(monkeypatch, tmp_path)
+
+    captured = {}
+
+    class FakeVideoComponents:
+        def __init__(self, **kw):
+            self.images = kw["images"]
+
+    class FakeVideoFromComponents:
+        def __init__(self, components, bit_depth=None):
+            captured["components"] = components
+
+    monkeypatch.setattr(nodes, "VideoComponents", FakeVideoComponents)
+    monkeypatch.setattr(nodes, "VideoFromComponents", FakeVideoFromComponents)
+
+    video, vvae, avae = _av_decode_fakes(nodes, frame_count=4, h=6, w=4)
+    # VAE decode rounded the size up: result is 12x8 instead of 6x4
+    vvae.decode = lambda z: torch.zeros(4, 12, 8, 3)
+    z = types.SimpleNamespace(unbind=lambda: (torch.zeros(1, 24, 1, 1, 1), torch.zeros(1, 32, 2, 2)))
+    nodes.LanPaint_AVDecode().decode(
+        {"samples": z}, video, vvae, avae, torch.zeros(4, 6, 4), torch.zeros(4),
+        blend_overlap=1, audio_crossfade=0.0)
+    assert tuple(captured["components"].images.shape) == (4, 6, 4, 3)  # matched the original exactly
+
+
+def test_av_decode_audio_interval_merge(monkeypatch, tmp_path) -> None:
+    nodes = _import_nodes(monkeypatch, tmp_path)
+
+    class FakeVideoComponents:
+        def __init__(self, **kw):
+            self.images = kw["images"]
+
+    class FakeVideoFromComponents:
+        def __init__(self, components, bit_depth=None):
+            pass
+
+    monkeypatch.setattr(nodes, "VideoComponents", FakeVideoComponents)
+    monkeypatch.setattr(nodes, "VideoFromComponents", FakeVideoFromComponents)
+
+    video, vvae, avae = _av_decode_fakes(nodes, frame_count=8, audio_sr=32000)
+    avae.decode = lambda z: torch.zeros(1, 8000, 2) + 1.0
+    z = types.SimpleNamespace(unbind=lambda: (torch.zeros(1, 24, 1, 1, 1), torch.zeros(1, 32, 2, 2)))
+    # audio mask: regenerate the second half (frames 4..7 of 8)
+    am = torch.zeros(8)
+    am[4:] = 1.0
+    out = nodes.LanPaint_AVDecode().decode(
+        {"samples": z}, video, vvae, avae, torch.zeros(8, 6, 4), am,
+        blend_overlap=1, audio_crossfade=0.0)
+    wav = out[1]["waveform"]
+    assert wav.shape == (1, 2, 8000)
+    assert wav[0, 0, 0] == 0.0        # first half: the original track
+    assert wav[0, 0, -1] == 1.0       # second half: the inpainted track
+    assert out[1]["sample_rate"] == 32000  # the original sample rate
+
+
+def test_av_decode_no_audio_falls_back_to_inpainted(monkeypatch, tmp_path) -> None:
+    nodes = _import_nodes(monkeypatch, tmp_path)
+
+    class SilentVideo:
+        def get_components(self):
+            return types.SimpleNamespace(images=torch.zeros(2, 4, 4, 3), audio=None)
+
+        def get_frame_rate(self):
+            from fractions import Fraction
+            return Fraction(24, 1)
+
+        def get_bit_depth(self):
+            return 8
+
+    class FakeVideoComponents:
+        def __init__(self, **kw):
+            self.images = kw["images"]
+
+    class FakeVideoFromComponents:
+        def __init__(self, components, bit_depth=None):
+            pass
+
+    monkeypatch.setattr(nodes, "VideoComponents", FakeVideoComponents)
+    monkeypatch.setattr(nodes, "VideoFromComponents", FakeVideoFromComponents)
+
+    vvae = type("V", (), {"decode": lambda self, z: torch.zeros(2, 4, 4, 3)})()
+    avae = type("A", (), {"audio_sample_rate": 32000, "decode": lambda self, z: torch.zeros(1, 800, 2)})()
+
+    z = types.SimpleNamespace(unbind=lambda: (torch.zeros(1, 24, 1, 1, 1), torch.zeros(1, 32, 2, 2)))
+    out = nodes.LanPaint_AVDecode().decode(
+        {"samples": z}, SilentVideo(), vvae, avae, torch.zeros(2, 4, 4), torch.zeros(2),
+        blend_overlap=1, audio_crossfade=0.0)
+    assert out[1]["waveform"].shape == (1, 2, 800)  # the inpainted audio, untouched
+
+
+def test_av_decode_combines_5d_decode_batch(monkeypatch, tmp_path) -> None:
+    """The H3 video VAE decode returns [1, F, H, W, C] (batch kept); the node
+    combines it to [F, H, W, C] like the stock VAEDecode before merging."""
+    nodes = _import_nodes(monkeypatch, tmp_path)
+
+    captured = {}
+
+    class FakeVideoComponents:
+        def __init__(self, **kw):
+            self.images = kw["images"]
+
+    class FakeVideoFromComponents:
+        def __init__(self, components, bit_depth=None):
+            captured["components"] = components
+
+    monkeypatch.setattr(nodes, "VideoComponents", FakeVideoComponents)
+    monkeypatch.setattr(nodes, "VideoFromComponents", FakeVideoFromComponents)
+
+    video, vvae, avae = _av_decode_fakes(nodes, frame_count=4, h=6, w=4)
+    # the real MiniMax H3 video VAE keeps the batch dim on decode
+    vvae.decode = lambda z: torch.zeros(1, 4, 6, 4, 3)
+    z = types.SimpleNamespace(unbind=lambda: (torch.zeros(1, 24, 1, 1, 1), torch.zeros(1, 32, 2, 2)))
+    nodes.LanPaint_AVDecode().decode(
+        {"samples": z}, video, vvae, avae, torch.zeros(4, 6, 4), torch.zeros(4),
+        blend_overlap=1, audio_crossfade=0.0)
+    assert tuple(captured["components"].images.shape) == (4, 6, 4, 3)
+
+
+def test_av_decode_crossfade_even_kernel_keeps_length(monkeypatch, tmp_path) -> None:
+    nodes = _import_nodes(monkeypatch, tmp_path)
+    # 0.02 s at 32000 Hz = 640 samples (EVEN kernel): the conv1d would produce
+    # one extra sample without the clamp
+    orig = torch.zeros(1, 2, 16000)
+    inp = torch.zeros(1, 2, 16000) + 1.0
+    am = torch.zeros(8)
+    am[4:] = 1.0
+    out = nodes.merge_audio_with_mask(orig, inp, am, 0.02, 32000, 32000)
+    assert out.shape == (1, 2, 16000)
+    # a smooth ramp near the boundary (not a hard cut, no extra samples)
+    mid = 8000
+    assert 0.0 < out[0, 0, mid].item() < 1.0
+    assert out[0, 0, 0] == pytest.approx(0.0, abs=1e-4)
+    assert out[0, 0, -1] == pytest.approx(1.0, abs=1e-4)
+
+
+def test_merge_audio_resamples_to_original_rate(monkeypatch, tmp_path) -> None:
+    nodes = _import_nodes(monkeypatch, tmp_path)
+    if nodes.torchaudio is None:
+        pytest.skip("torchaudio not available")
+    # the inpainted audio at 24000 Hz blended with the original at 32000 Hz
+    orig = torch.zeros(1, 2, 32000)
+    inp = torch.zeros(1, 2, 24000) + 1.0
+    am = torch.ones(8)
+    out = nodes.merge_audio_with_mask(orig, inp, am, 0.0, 32000, 24000)
+    assert out.shape == (1, 2, 32000)  # at the original sample rate
+    assert (out == 1.0).all()  # fully masked: everything from the inpainted track

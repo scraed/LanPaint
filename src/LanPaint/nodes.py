@@ -53,19 +53,22 @@ COMFYUI_VERSION_060_OR_NEWER = _version_tuple(comfyui_version.__version__) >= (0
 
 def reshape_mask(input_mask, output_shape,video_inpainting=False):
     dims = len(output_shape) - 2
-    print('output shape',output_shape)
     scale_mode = "nearest-exact"
-    print('input mask',input_mask.shape,type(input_mask),torch.max(input_mask),torch.min(input_mask))
-    print('target output_shape',output_shape)
-    print('input_mask.ndim:', input_mask.ndim, 'output_shape len:', len(output_shape))
 
     # Handle input mask dimensions
-    if video_inpainting and input_mask.ndim == 3:
-        # per-frame video mask [F, H, W] -> (1, 1, F, H, W) (frames at dim 2)
-        input_mask = input_mask.unsqueeze(0).unsqueeze(1)
+    if video_inpainting:
+        # video masks -> (1, 1, F, H, W): raw [F, H, W], or the [F, 1, H, W]
+        # shape SetLatentNoiseMask produces (frames at batch); a plain
+        # [H, W] image mask is broadcast over the whole video; 5D passes
+        if input_mask.ndim == 3:
+            input_mask = input_mask.unsqueeze(0).unsqueeze(1)
+        elif input_mask.ndim == 4:
+            input_mask = input_mask.permute(1, 0, 2, 3).unsqueeze(0)
+        elif input_mask.ndim == 2:
+            input_mask = input_mask.unsqueeze(0).unsqueeze(0).unsqueeze(0)
     elif input_mask.ndim == 1 and len(output_shape) == 4:
         # audio mask [F] at video frame rate -> the audio latent's token grid:
-        # nearest-exact along time, then expanded to the (ch=2, tokens) layout
+        # nearest-exact along time, then expanded to the (ch, tokens) layout
         f, t = input_mask.shape[0], output_shape[-1]
         input_mask = torch.nn.functional.interpolate(
             input_mask.float().unsqueeze(0).unsqueeze(0),
@@ -73,6 +76,12 @@ def reshape_mask(input_mask, output_shape,video_inpainting=False):
             mode="nearest-exact",
         )
         input_mask = input_mask.expand(1, 1, output_shape[-2], t)
+    elif input_mask.ndim == 4 and len(output_shape) == 4 and input_mask.shape[1] == 1 and input_mask.shape[3] == 1:
+        # audio mask [F, 1] that SetLatentNoiseMask reshaped to [1, 1, F, 1]:
+        # nearest F -> T, then expanded to (1, 1, ch, T)
+        f, t = input_mask.shape[2], output_shape[-1]
+        input_mask = torch.nn.functional.interpolate(input_mask, size=(t, 1), mode="nearest-exact")
+        input_mask = input_mask.permute(0, 1, 3, 2).expand(1, 1, output_shape[-2], t)
     elif input_mask.ndim == 2:
         input_mask = input_mask.unsqueeze(0).unsqueeze(0)
     elif input_mask.ndim == 3:
@@ -84,25 +93,23 @@ def reshape_mask(input_mask, output_shape,video_inpainting=False):
             input_mask = input_mask.unsqueeze(2)  # (B, C, 1, H, W)
 
     if video_inpainting:  # Video case: (batch, channels, frames, height, width)
-        ## legacy comfy < 0.6.0: frames-at-batch [F, 1, H, W] -> (1, 1, F, H, W)
-        if not COMFYUI_VERSION_060_OR_NEWER and input_mask.ndim == 4:
-            input_mask = input_mask.permute(1, 0, 2, 3).unsqueeze(0)
 
         # Temporal union: a latent token covers ~4 video frames (the VAE's
         # nominal temporal stride), and a token-level mask is all-or-nothing
         # (binarized at 0.5 downstream). Averaging the frames into a token
         # (trilinear) can erase sparse temporal strokes entirely; instead the
         # token takes the UNION (max) of its ~4 frames - it regenerates iff
-        # any of them is painted. The last window is partial.
-        if input_mask.shape[2] > 4:
-            f = input_mask.shape[2]
-            n_win = (f + 3) // 4
-            pooled = torch.zeros(
-                (input_mask.shape[0], input_mask.shape[1], n_win, input_mask.shape[3], input_mask.shape[4]),
-                dtype=input_mask.dtype, device=input_mask.device)
-            for i in range(n_win):
-                pooled[:, :, i] = input_mask[:, :, i * 4 : (i + 1) * 4].amax(dim=2)
-            input_mask = pooled
+        # any of them is painted. The last window is partial; short sequences
+        # (1-4 frames) collapse to a single window holding the max, which is
+        # exactly the union.
+        f = input_mask.shape[2]
+        n_win = (f + 3) // 4
+        pooled = torch.zeros(
+            (input_mask.shape[0], input_mask.shape[1], n_win, input_mask.shape[3], input_mask.shape[4]),
+            dtype=input_mask.dtype, device=input_mask.device)
+        for i in range(n_win):
+            pooled[:, :, i] = input_mask[:, :, i * 4 : (i + 1) * 4].amax(dim=2)
+        input_mask = pooled
 
         target_frames = output_shape[2]
         target_height, target_width = output_shape[-2:]
@@ -116,7 +123,6 @@ def reshape_mask(input_mask, output_shape,video_inpainting=False):
 
         # temp_mask is already 5D: (batch, channels, target_frames, target_height, target_width)
         mask = temp_mask
-        print('after mask',mask.shape)
         # Handle channel dimension expansion if needed
         if mask.shape[1] < output_shape[1]:
             mask = mask.repeat(1, output_shape[1], 1, 1, 1)[:, :output_shape[1]]
@@ -345,35 +351,47 @@ class KSAMPLER(comfy.samplers.KSAMPLER):
         samples = model_wrap.inner_model.model_sampling.inverse_noise_scaling(sigmas[-1], samples)
         return samples
 
+_override_active = False
+
+
 @contextmanager
 def override_sample_function():
-    original_outer_sample = comfy.samplers.CFGGuider.outer_sample
-    comfy.samplers.CFGGuider.outer_sample = CFGGuider_LanPaint.outer_sample
-
-    original_predict_noise = comfy.samplers.CFGGuider.predict_noise
-    comfy.samplers.CFGGuider.predict_noise = CFGGuider_LanPaint.predict_noise
-
-    original_sample = comfy.samplers.KSAMPLER.sample
-    comfy.samplers.KSAMPLER.sample = KSAMPLER.sample
-
-    # Route the stock per-stream mask prep (inside CFGGuider.sample) through
-    # our prepare_mask so video masks get the temporal-union aggregation
-    # (window-4 max + nearest-exact) from reshape_mask. 5D targets (video)
-    # use the union path; everything else keeps the existing behavior.
-    original_prepare_mask = comfy.sampler_helpers.prepare_mask
-
-    def _prepare_mask_with_union(noise_mask, shape, device):
-        return prepare_mask(noise_mask, shape, device, video_inpainting=(len(shape) == 5))
-
-    comfy.sampler_helpers.prepare_mask = _prepare_mask_with_union
-
+    # guard against nested entry: a second entry must not capture the already
+    # patched functions as "originals" (that would restore the patches, not
+    # the real functions, on exit)
+    global _override_active
+    if _override_active:
+        yield
+        return
+    _override_active = True
     try:
+        original_outer_sample = comfy.samplers.CFGGuider.outer_sample
+        comfy.samplers.CFGGuider.outer_sample = CFGGuider_LanPaint.outer_sample
+
+        original_predict_noise = comfy.samplers.CFGGuider.predict_noise
+        comfy.samplers.CFGGuider.predict_noise = CFGGuider_LanPaint.predict_noise
+
+        original_sample = comfy.samplers.KSAMPLER.sample
+        comfy.samplers.KSAMPLER.sample = KSAMPLER.sample
+
+        # Route the stock per-stream mask prep (inside CFGGuider.sample) through
+        # our prepare_mask so video masks get the temporal-union aggregation
+        # (window-4 max + nearest-exact) from reshape_mask. 5D targets (video)
+        # use the union path; everything else keeps the existing behavior.
+        original_prepare_mask = comfy.sampler_helpers.prepare_mask
+
+        def _prepare_mask_with_union(noise_mask, shape, device):
+            return prepare_mask(noise_mask, shape, device, video_inpainting=(len(shape) == 5))
+
+        comfy.sampler_helpers.prepare_mask = _prepare_mask_with_union
+
         yield
     finally:
         comfy.sampler_helpers.prepare_mask = original_prepare_mask
         comfy.samplers.KSAMPLER.sample = original_sample
         comfy.samplers.CFGGuider.predict_noise = original_predict_noise
         comfy.samplers.CFGGuider.outer_sample = original_outer_sample
+        _override_active = False
 
 
 class LanPaint_UpSale_LatentNoiseMask:
@@ -573,15 +591,7 @@ class MaskBlend:
         """
         Creates a 2D Gaussian kernel with the given size and standard deviation (sigma).
         """
-        sigma = (kernel_size - 1)/4
-        # Create a grid of (x, y) coordinates
-        x = torch.arange(kernel_size).float() - kernel_size // 2
-        y = torch.arange(kernel_size).float() - kernel_size // 2
-        x_grid, y_grid = torch.meshgrid(x, y, indexing='ij')
-
-        # Compute the Gaussian function
-        kernel = torch.exp(-(x_grid ** 2 + y_grid ** 2) / (2 * sigma ** 2))
-        kernel = kernel / kernel.sum()  # Normalize the kernel
+        return gaussian_kernel_2d(kernel_size)
 
         return kernel
 
@@ -806,9 +816,12 @@ class LanPaint_MiniMaxAudioDecode:
 
 
 try:
-    from comfy_api.latest._input_impl.video_types import VideoFromFile
+    from comfy_api.latest._input_impl.video_types import VideoFromFile, VideoFromComponents
+    from comfy_api.latest._util.video_types import VideoComponents
 except Exception:  # comfy_api unavailable (stub/CI env): video output disabled
     VideoFromFile = None
+    VideoFromComponents = None
+    VideoComponents = None
 
 
 class LanPaint_VideoMaskEditor:
@@ -919,6 +932,231 @@ class LanPaint_VideoMaskEditor:
         return (vf, out, audio_out)
 
 
+class LanPaint_AVEncode:
+    """Encode a video's frames and audio into a nested AV latent, attaching
+    the video and audio masks for inpainting.
+
+    Replaces the workflow chain GetVideoComponents -> VAEEncode ->
+    SetLatentNoiseMask + MiniMaxAudioEncode -> SetLatentNoiseMask ->
+    Concat AV Latent with a single node. The video file's frames and audio
+    track are decoded here (via the VIDEO reference), encoded with the two
+    VAEs, and the masks ride per-stream inside the returned nested latent,
+    so the sampler can inpaint video and audio from one mask source.
+    """
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "video": ("VIDEO", {"tooltip": "The video (from the mask editor or LoadVideo). Frames and audio track are decoded and encoded."}),
+                "vae": ("VAE", {"tooltip": "The video VAE."}),
+                "audio_vae": ("VAE", {"tooltip": "The audio VAE (e.g. the MiniMax H3 audio VAE)."}),
+                "mask": ("MASK", {"tooltip": "Per-frame video mask [F, H, W] (1 = regenerate, 0 = keep)."}),
+                "audio_mask": ("MASK", {"tooltip": "Audio mask [F] or [F, 1] at video frame rate (1 = regenerate that moment of the audio, 0 = keep)."}),
+            },
+        }
+
+    RETURN_TYPES = ("LATENT",)
+    RETURN_NAMES = ("latent",)
+    FUNCTION = "encode"
+    CATEGORY = "video"
+    DESCRIPTION = "Encode a video's frames and audio into a nested AV latent with per-stream video and audio masks (1 = regenerate, 0 = keep)."
+
+    def encode(self, video, vae, audio_vae, mask, audio_mask):
+        components = video.get_components()
+        frames = components.images  # [B, H, W, C] in 0..1
+        z_video = vae.encode(frames[:, :, :, :3])
+
+        audio = components.audio
+        if audio is None:
+            raise ValueError("the video has no audio track to encode")
+        z_audio = LanPaint_MiniMaxAudioEncode().encode(audio, audio_vae)[0]["samples"]
+
+        # audio mask: accept [F] or [F, 1]; the per-stream prep resamples it
+        # to the audio latent tokens
+        if audio_mask.ndim == 2 and audio_mask.shape[1] == 1:
+            audio_mask = audio_mask[:, 0]
+
+        return ({
+            "samples": comfy.nested_tensor.NestedTensor((z_video, z_audio)),
+            "noise_mask": comfy.nested_tensor.NestedTensor((mask, audio_mask)),
+        },)
+
+
+def gaussian_kernel_2d(kernel_size):
+    """2D Gaussian kernel, sigma = (size - 1) / 4 (same as MaskBlend)."""
+    if kernel_size <= 1:
+        return torch.ones(1, 1)  # no blending: identity kernel
+    sigma = (kernel_size - 1) / 4
+    x = torch.arange(kernel_size).float() - kernel_size // 2
+    x_grid, y_grid = torch.meshgrid(x, x, indexing="ij")
+    kernel = torch.exp(-(x_grid**2 + y_grid**2) / (2 * sigma**2))
+    return kernel / kernel.sum()
+
+
+def merge_video_with_mask(orig, inpainted, mask, blend_overlap):
+    """Blend the inpainted frames into the original with a MaskBlend-style
+    boundary: dilate the mask (max_pool), smooth it (Gaussian), then
+    ``orig * (1 - m) + inpainted * m``."""
+    m = mask.float()
+    if m.ndim == 4:  # [F, 1, H, W] from SetLatentNoiseMask
+        m = m[:, 0]
+    count = min(orig.shape[0], inpainted.shape[0], m.shape[0])
+    orig = orig[:count]
+    inpainted = inpainted[:count]
+    m = m[:count] if m.shape[0] > 1 else m[:1].expand(count, -1, -1)
+    if tuple(m.shape[1:]) != tuple(orig.shape[1:3]):
+        m = torch.nn.functional.interpolate(
+            m.unsqueeze(1), size=orig.shape[1:3], mode="nearest-exact"
+        )[:, 0]
+    m = m.unsqueeze(1)
+    m = torch.nn.functional.max_pool2d(
+        m, kernel_size=blend_overlap, stride=1, padding=blend_overlap // 2
+    )
+    kernel = gaussian_kernel_2d(blend_overlap).to(orig.device)[None, None]
+    m = torch.nn.functional.conv2d(m, kernel, padding=blend_overlap // 2)[:, 0]
+    return orig * (1 - m[..., None]) + inpainted * m[..., None]
+
+
+def merge_audio_with_mask(orig, inpainted, mask, crossfade, orig_sr, result_sr):
+    """Blend the inpainted audio into the original inside the mask intervals.
+    ``orig``/``inpainted`` are [B, C, L] waveforms (resampled to the original
+    rate first); the per-frame mask is resampled to samples and a linear ramp
+    of ``crossfade`` seconds is applied at each interval edge (0 = hard cut)."""
+    if result_sr != orig_sr:
+        if torchaudio is None:
+            raise RuntimeError("torchaudio is required to resample the inpainted audio")
+        inpainted = torchaudio.functional.resample(inpainted, result_sr, orig_sr)
+    if inpainted.shape[-1] != orig.shape[-1]:
+        n = min(inpainted.shape[-1], orig.shape[-1])
+        orig = orig[..., :n]
+        inpainted = inpainted[..., :n]
+    am = mask.float()
+    if am.ndim == 4:  # [1, 1, F, 1] from SetLatentNoiseMask
+        am = am[0, 0]
+    elif am.ndim == 2 and am.shape[1] == 1:
+        am = am[:, 0]
+    n = orig.shape[-1]
+    if am.shape[0] == n:
+        w = am
+    else:
+        w = torch.nn.functional.interpolate(
+            am.float().unsqueeze(0).unsqueeze(0), size=(n,), mode="nearest-exact"
+        )[0, 0]
+    if crossfade > 0 and orig_sr > 0:
+        cf = max(1, int(round(crossfade * orig_sr)))
+        kernel = torch.ones(1, 1, cf, device=orig.device) / cf
+        # replicate padding: the box ramp applies only at true 0<->1
+        # transitions, not at the mask's data ends (zero padding would bleed
+        # a partial blend into the fully-masked tail). cf-1 total padding keeps
+        # the output length exactly n (even kernels included).
+        w_pad = torch.nn.functional.pad(
+            w[None, None], (cf // 2, cf - 1 - cf // 2), mode="replicate"
+        )
+        w = torch.nn.functional.conv1d(w_pad, kernel)[0, 0][..., :n]
+    if orig.shape[1] != inpainted.shape[1]:  # match channel counts before blending
+        if orig.shape[1] == 1:
+            orig = orig.expand(-1, inpainted.shape[1], -1)  # mono source: upmix
+        elif inpainted.shape[1] == 1:
+            inpainted = inpainted.expand(-1, orig.shape[1], -1)
+        else:
+            # surround original vs stereo inpainted: keep the original's first
+            # channels (a downmix rather than a crash)
+            orig = orig[:, : inpainted.shape[1]]
+    return orig * (1 - w[None, None]) + inpainted * w[None, None]
+
+
+class LanPaint_AVDecode:
+    """Decode a nested AV latent and merge the inpainted video and audio with
+    the original video, keeping the source's fps and bit depth.
+
+    The result frames replace the original only inside the video mask
+    (boundary blended like LanPaint_MaskBlend, ``blend_overlap`` pixels);
+    the result audio replaces the original only inside the audio mask
+    intervals (with a short crossfade at the edges). The decoded frames are
+    resized to match the original dimensions exactly (VAE decodes can round
+    the size). The output video carries the original file's frame rate and
+    bit depth. A source without an audio track falls back to the inpainted
+    audio.
+    """
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "samples": ("LATENT", {"tooltip": "The nested AV latent to decode (from the sampler)."}),
+                "video": ("VIDEO", {"tooltip": "The original video (from the mask editor): source of the kept content, fps and bit depth."}),
+                "vae": ("VAE", {"tooltip": "The video VAE."}),
+                "audio_vae": ("VAE", {"tooltip": "The audio VAE (e.g. the MiniMax H3 audio VAE)."}),
+                "mask": ("MASK", {"tooltip": "Per-frame video mask [F, H, W] (1 = regenerate, 0 = keep)."}),
+                "audio_mask": ("MASK", {"tooltip": "Audio mask [F] or [F, 1] at video frame rate (1 = regenerate that moment of the audio, 0 = keep)."}),
+                "blend_overlap": ("INT", {"default": 11, "min": 1, "max": 51, "step": 2, "tooltip": "Boundary blend width in pixels between the inpainted and original video (MaskBlend-style)."}),
+                "audio_crossfade": ("FLOAT", {"default": 0.02, "min": 0.0, "max": 1.0, "step": 0.005, "tooltip": "Crossfade in seconds at audio interval edges (0 = hard cut)."}),
+            },
+        }
+
+    RETURN_TYPES = ("VIDEO", "AUDIO")
+    RETURN_NAMES = ("video", "audio")
+    FUNCTION = "decode"
+    CATEGORY = "video"
+    DESCRIPTION = "Decode the nested AV latent, merge the inpainted video and audio with the original (mask-blended), and write the result with the original fps and bit depth."
+
+    def decode(self, samples, video, vae, audio_vae, mask, audio_mask, blend_overlap, audio_crossfade):
+        if VideoFromComponents is None or VideoComponents is None:
+            raise RuntimeError("the video output requires the ComfyUI runtime (comfy_api)")
+
+        components = video.get_components()
+        orig_frames = components.images  # [F, H, W, C] in 0..1
+        orig_audio = components.audio  # {"waveform": [B, C, L], "sample_rate"} or None
+
+        z_video, z_audio = samples["samples"].unbind()
+
+        result_frames = vae.decode(z_video)  # [F, H, W, C] in 0..1
+        if len(result_frames.shape) == 5:  # [1, F, H, W, C]: combine batches
+            result_frames = result_frames.reshape(
+                -1, result_frames.shape[-3], result_frames.shape[-2], result_frames.shape[-1]
+            )
+        result_audio = LanPaint_MiniMaxAudioDecode().decode(
+            {"samples": z_audio}, audio_vae
+        )[0]  # {"waveform": [B, C, L], "sample_rate": vae rate}
+
+        # VAE decodes can round the size: match the original dimensions exactly
+        target_h, target_w = orig_frames.shape[1], orig_frames.shape[2]
+        if tuple(result_frames.shape[1:3]) != (target_h, target_w):
+            result_frames = torch.nn.functional.interpolate(
+                result_frames.movedim(-1, 1),
+                size=(target_h, target_w),
+                mode="bilinear",
+                align_corners=False,
+            ).movedim(1, -1)
+
+        merged_frames = merge_video_with_mask(orig_frames, result_frames, mask, blend_overlap)
+
+        merged_audio = result_audio
+        if orig_audio is not None:
+            merged_audio = merge_audio_with_mask(
+                orig_audio["waveform"].float(),
+                result_audio["waveform"].float(),
+                audio_mask,
+                audio_crossfade,
+                orig_audio["sample_rate"],
+                result_audio["sample_rate"],
+            )
+            merged_audio = {"waveform": merged_audio, "sample_rate": orig_audio["sample_rate"]}
+
+        return (
+            VideoFromComponents(
+                VideoComponents(
+                    images=merged_frames,
+                    audio=merged_audio,
+                    frame_rate=video.get_frame_rate(),
+                ),
+                bit_depth=video.get_bit_depth(),
+            ),
+            merged_audio,
+        )
+
+
 # A dictionary that contains all nodes you want to export with their names
 # NOTE: names should be globally unique
 NODE_CLASS_MAPPINGS = {
@@ -930,6 +1168,8 @@ NODE_CLASS_MAPPINGS = {
     "LanPaint_MiniMaxAudioEncode": LanPaint_MiniMaxAudioEncode,
     "LanPaint_MiniMaxAudioDecode": LanPaint_MiniMaxAudioDecode,
     "LanPaint_VideoMaskEditor": LanPaint_VideoMaskEditor,
+    "LanPaint_AVEncode": LanPaint_AVEncode,
+    "LanPaint_AVDecode": LanPaint_AVDecode,
 #    "LanPaint_UpSale_LatentNoiseMask": LanPaint_UpSale_LatentNoiseMask,
 }
 
@@ -943,5 +1183,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LanPaint_MiniMaxAudioEncode": "LanPaint MiniMax Audio Encode",
     "LanPaint_MiniMaxAudioDecode": "LanPaint MiniMax Audio Decode",
     "LanPaint_VideoMaskEditor": "LanPaint Video Mask Editor",
+    "LanPaint_AVEncode": "LanPaint AV Encode",
+    "LanPaint_AVDecode": "LanPaint AV Decode",
 #    "LanPaint_UpSale_LatentNoiseMask": "LanPaint UpSale Latent Noise Mask"
 }
