@@ -928,7 +928,10 @@ def test_merge_audio_resamples_to_original_rate(monkeypatch, tmp_path) -> None:
     am = torch.ones(8)
     out = nodes.merge_audio_with_mask(orig, inp, am, 0.0, 32000, 24000)
     assert out.shape == (1, 2, 32000)  # at the original sample rate
-    assert (out == 1.0).all()  # fully masked: everything from the inpainted track
+    # fully masked: everything from the inpainted track. torchaudio's
+    # resampler rings at the signal edges (a constant signal is a step at the
+    # boundary), so assert the interior is exactly the inpainted track.
+    assert torch.allclose(out[..., 512:-512], torch.ones_like(out[..., 512:-512]), atol=1e-3)
 
 
 def test_scipy_edt_matches_python_fallback(monkeypatch) -> None:
@@ -1043,15 +1046,21 @@ def test_image_encode_accepts_3d_and_4d_masks(monkeypatch, tmp_path) -> None:
     assert torch.equal(l1["noise_mask"], l3["noise_mask"])
 
 
-def test_image_encode_rejects_video_latent(monkeypatch, tmp_path) -> None:
+def test_image_encode_accepts_video_vae_latent(monkeypatch, tmp_path) -> None:
     nodes = _import_nodes(monkeypatch, tmp_path)
 
     class VideoVAE:
         def encode(self, x):
-            return torch.zeros(1, 24, 2, 2, 3)  # 5D: video VAE
+            return torch.zeros(1, 24, 2, 2, 3)  # 5D [B, C, T, H, W]: video VAE
 
-    with pytest.raises(ValueError, match="AVEncode"):
-        nodes.LanPaint_ImageEncode().encode(torch.zeros(1, 16, 24, 3), VideoVAE())
+    mask = torch.zeros(16, 24)
+    mask[8:, 12:] = 1.0
+    latent = nodes.LanPaint_ImageEncode().encode(
+        torch.zeros(1, 16, 24, 3), VideoVAE(), mask)[0]
+    # the mask rides as [1, 1, T, H, W], snapped to the latent spatial size
+    assert latent["noise_mask"].shape == (1, 1, 2, 2, 3)
+    assert latent["noise_mask"][0, 0, 1, 1, 1] == 1.0
+    assert latent["noise_mask"][0, 0, 0, 0, 0] == 0.0
 
 
 def test_image_decode_resizes_and_merges(monkeypatch, tmp_path) -> None:

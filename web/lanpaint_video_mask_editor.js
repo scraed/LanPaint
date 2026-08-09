@@ -345,6 +345,7 @@ class VideoMaskEditor {
         this.peaks = null;         // decoded waveform peaks
         this.waveCanvas = null;
         this.waveDrag = null;      // {start, end} while dragging a new interval
+        this._maskVideo = null;    // last video for which masks were auto-loaded
     }
 
     /* ---------------- lifecycle ---------------- */
@@ -369,7 +370,9 @@ class VideoMaskEditor {
 
         try {
             await this._loadVideo(filename);
-            await this._loadSavedKeyframes();
+            if (!this._metaLoaded) {
+                await this._loadSavedKeyframes();
+            }
             this.peaks = await loadAudioPeaks(this.video.currentSrc);
             this._loadAudioIntervals();
             await this.showFrame(0);
@@ -517,6 +520,114 @@ class VideoMaskEditor {
         video.pause();
         this.fps = await measureVideoFps(video);
         this.frameCount = Math.max(1, Math.round(video.duration * this.fps));
+        this._metaLoaded = await this._autoLoadMaskMeta(filename);
+    }
+
+    /**
+     * Fetch `/lanpaint/video_mask_meta` for the video and, if metadata is
+     * present, upload the base64 keyframes as PNGs and populate the timeline
+     * and widget. Returns true when metadata was found and loaded.
+     */
+    async _autoLoadMaskMeta(filename) {
+        try {
+            const url =
+                api.apiURL(
+                    "/lanpaint/video_mask_meta?filename=" + encodeURIComponent(filename)
+                ) + "&rand=" + Math.random();
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            const json = await resp.json();
+            if (!json.found || !json.payload) {
+                // the video carries no mask metadata: the workflow's masks are
+                // meaningless for it, so clear them (the video is the source
+                // of truth for masks)
+                this.timeline.keyframes.clear();
+                this.timeline.sdfCache.clear();
+                this.undo.clear();
+                this.audioIntervals = [];
+                const kw = this.getKeyframesWidget();
+                if (kw) kw.value = "{}";
+                const aw = this.getAudioMaskWidget();
+                if (aw) aw.value = "[]";
+                return false;
+            }
+            const payload = json.payload;
+            // clear existing keyframes (the metadata is the source of truth)
+            this.timeline.keyframes.clear();
+            this.timeline.sdfCache.clear();
+            this.undo.clear();
+
+            const keyframeData = payload.keyframes || {};
+            const filenames = {};
+            const stamp = Date.now();
+            for (const [idxStr, b64png] of Object.entries(keyframeData)) {
+                const idx = parseInt(idxStr, 10);
+                if (isNaN(idx) || idx < 0 || idx >= this.frameCount) continue;
+                try {
+                    const img = await new Promise((resolve, reject) => {
+                        const im = new Image();
+                        im.onload = () => resolve(im);
+                        im.onerror = () => reject(new Error("decode failed"));
+                        im.src = "data:image/png;base64," + b64png;
+                    });
+                    const c = this.timeline.newMaskCanvas();
+                    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+                    this.timeline.setKeyframe(idx, c);
+
+                    // upload so the widget stores a server filename
+                    const blob = await new Promise((r) => c.toBlob(r, "image/png"));
+                    if (!blob) continue;
+                    const name = "lanpaint_kf_" + stamp + "_" + idx + ".png";
+                    const fd = new FormData();
+                    fd.append("image", blob, name);
+                    fd.append("type", "input");
+                    const upResp = await api.fetchApi("/upload/image", {
+                        method: "POST",
+                        body: fd,
+                    });
+                    if (!upResp.ok) continue;
+                    const upData = await upResp.json();
+                    filenames[idx] = upData.name;
+                } catch (e) {
+                    console.warn("[LanPaint] auto-load keyframe decode failed:", e);
+                }
+            }
+
+            const kw = this.getKeyframesWidget();
+            if (kw) kw.value = JSON.stringify(filenames);
+            const aw = this.getAudioMaskWidget();
+            if (aw) aw.value = JSON.stringify(payload.audio_intervals || "[]");
+            this._loadAudioIntervals();
+            this._maskVideo = filename;
+
+            // keep widget_values in sync
+            if (this.node.widgets_values && this.node.widgets) {
+                for (const ww of [kw, aw]) {
+                    if (!ww) continue;
+                    const wi = this.node.widgets.indexOf(ww);
+                    if (wi >= 0) this.node.widgets_values[wi] = ww.value;
+                }
+            }
+
+            console.log(
+                "[LanPaint VideoMaskEditor] auto-loaded",
+                Object.keys(filenames).length,
+                "keyframes from mp4 metadata"
+            );
+            return true;
+        } catch (err) {
+            console.warn("[LanPaint] video_mask_meta fetch failed:", err);
+            // no metadata could be read: treat like not-found and clear
+            this.timeline.keyframes.clear();
+            this.timeline.sdfCache.clear();
+            this.undo.clear();
+            this.audioIntervals = [];
+            const kw = this.getKeyframesWidget();
+            if (kw) kw.value = "{}";
+            const aw = this.getAudioMaskWidget();
+            if (aw) aw.value = "[]";
+            return false;
+        }
     }
 
     /** Canvas for frame `index` (cached, LRU). */
@@ -690,6 +801,93 @@ class VideoMaskEditor {
         }
     }
 
+    async _exportMaskVideo() {
+        const filename = this.getVideoFilename();
+        if (!filename) {
+            alert("No video file selected.");
+            return;
+        }
+        if (this.timeline.keyframes.size === 0 && this.audioIntervals.length === 0) {
+            alert("No keyframes or audio intervals to export.");
+            return;
+        }
+        try {
+            const keyframes = {};
+            for (const [idx, canvas] of this.timeline.keyframes) {
+                keyframes[idx] = canvas
+                    .toDataURL("image/png")
+                    .replace(/^data:image\/png;base64,/, "");
+            }
+            const body = {
+                filename: filename,
+                keyframes: keyframes,
+                audio_intervals: this.audioIntervals,
+                fps: this.fps,
+            };
+            const resp = await api.fetchApi("/lanpaint/export_mask_video", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
+            if (!resp.ok) {
+                const text = await resp.text().catch(() => "");
+                throw new Error("Export failed (" + resp.status + "): " + text);
+            }
+            const result = await resp.json();
+            this._maskVideo = filename;
+            // offer a native save dialog (choose location + name) when available;
+            // the input/ copy from the export stays as the ComfyUI-visible copy
+            if (typeof window.showSaveFilePicker === "function") {
+                try {
+                    const viewUrl =
+                        api.apiURL(
+                            "/view?filename=" + encodeURIComponent(result.filename) + "&type=input"
+                        ) + app.getRandParam();
+                    const buf = await (await fetch(viewUrl)).arrayBuffer();
+                    const handle = await window.showSaveFilePicker({
+                        suggestedName: result.filename,
+                        types: [
+                            {
+                                description: "MP4 video",
+                                accept: { "video/mp4": [".mp4"] },
+                            },
+                        ],
+                    });
+                    const writable = await handle.createWritable();
+                    await writable.write(new Uint8Array(buf));
+                    await writable.close();
+                    this._flash(
+                        "Saved to " + handle.name + " (also in input: " + result.filename + ")"
+                    );
+                } catch (pickErr) {
+                    // user cancelled the picker or the API failed: the input/
+                    // copy is still there and usable
+                    this._flash("Exported to input: " + (result.path || result.filename));
+                }
+            } else {
+                this._flash("Exported: " + (result.path || result.filename));
+            }
+
+            // If the video widget points at the source file, refresh it to the
+            // newly exported masked file.
+            const vw = this.node.widgets?.find((x) => x.name === "video");
+            if (vw && vw.value === filename && vw.callback) {
+                vw.value = result.filename;
+                if (this.node.widgets_values) {
+                    const vi = this.node.widgets.indexOf(vw);
+                    if (vi >= 0) this.node.widgets_values[vi] = result.filename;
+                }
+                try {
+                    vw.callback(result.filename);
+                } catch (_) {
+                    /* ignore callback errors */
+                }
+            }
+        } catch (err) {
+            alert("Export failed: " + err.message);
+        }
+    }
+
     async save() {
         const w = this.getKeyframesWidget();
         if (!w) return;
@@ -745,6 +943,7 @@ class VideoMaskEditor {
           <span id="lpvme-frame-label">frame 0 / 0</span>
           <span style="flex:1"></span>
           <button id="lpvme-save" title="Upload keyframes and write them into the node">Save</button>
+          <button id="lpvme-export" title="Remux the source video with mask metadata">导出 mask 视频</button>
           <button id="lpvme-close" title="Close (Escape)">Close</button>
         </div>
         <div id="lpvme-stage" style="flex:1;position:relative;overflow:hidden;background:#0f0f0f;">
@@ -858,6 +1057,9 @@ class VideoMaskEditor {
             } catch (err) {
                 alert("Save failed: " + err.message);
             }
+        });
+        this.el.querySelector("#lpvme-export").addEventListener("click", () => {
+            this._exportMaskVideo();
         });
         this.el.querySelector("#lpvme-close").addEventListener("click", () => this.close());
         this.el.querySelector("#lpvme-add-kf").addEventListener("click", () => {
@@ -1030,7 +1232,13 @@ class NodeMaskPreview {
         this.lastDrawnValue = null;
         this.lastPlayheadX = null;
         this._sizeWrapped = false;
+        this._maskVideo = null;    // last video for which masks were auto-loaded
         this._tick();
+    }
+
+    _getVideoFilename() {
+        const w = this.node.widgets?.find((x) => x.name === "video");
+        return w && typeof w.value === "string" ? w.value : null;
     }
 
     _keyframesWidget() {
@@ -1188,8 +1396,112 @@ class NodeMaskPreview {
         this.timeline = new MaskTimeline();
         this.timeline.setSize(video.videoWidth, video.videoHeight);
         this.lastMaskIdx = null;
-        await this._reloadKeyframes();
+        const filename = this._getVideoFilename();
+        if (filename) {
+            const metaLoaded = await this._autoLoadMaskMeta(filename);
+            if (!metaLoaded) {
+                await this._reloadKeyframes();
+            }
+        } else {
+            await this._reloadKeyframes();
+        }
         this.lastKeyframesValue = this._keyframesWidget()?.value;
+    }
+
+    /**
+     * Fetch `/lanpaint/video_mask_meta` for the video and, if metadata is
+     * present, upload the base64 keyframes as PNGs and populate the timeline
+     * and widget. Returns true when metadata was found and loaded.
+     */
+    async _autoLoadMaskMeta(filename) {
+        try {
+            const url =
+                api.apiURL(
+                    "/lanpaint/video_mask_meta?filename=" + encodeURIComponent(filename)
+                ) + "&rand=" + Math.random();
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            const json = await resp.json();
+            if (!json.found || !json.payload) {
+                // the video carries no mask metadata: clear the workflow's masks
+                this.timeline.keyframes.clear();
+                this.timeline.sdfCache.clear();
+                const kw = this._keyframesWidget();
+                if (kw) kw.value = "{}";
+                const aw = this.getAudioMaskWidget();
+                if (aw) aw.value = "[]";
+                return false;
+            }
+            const payload = json.payload;
+            this.timeline.keyframes.clear();
+            this.timeline.sdfCache.clear();
+
+            const keyframeData = payload.keyframes || {};
+            const filenames = {};
+            const stamp = Date.now();
+            for (const [idxStr, b64png] of Object.entries(keyframeData)) {
+                const idx = parseInt(idxStr, 10);
+                if (isNaN(idx) || idx < 0 || idx >= this.frameCount) continue;
+                try {
+                    const img = await new Promise((resolve, reject) => {
+                        const im = new Image();
+                        im.onload = () => resolve(im);
+                        im.onerror = () => reject(new Error("decode failed"));
+                        im.src = "data:image/png;base64," + b64png;
+                    });
+                    const c = this.timeline.newMaskCanvas();
+                    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+                    this.timeline.setKeyframe(idx, c);
+
+                    const blob = await new Promise((r) => c.toBlob(r, "image/png"));
+                    if (!blob) continue;
+                    const name = "lanpaint_kf_" + stamp + "_" + idx + ".png";
+                    const fd = new FormData();
+                    fd.append("image", blob, name);
+                    fd.append("type", "input");
+                    const upResp = await api.fetchApi("/upload/image", {
+                        method: "POST",
+                        body: fd,
+                    });
+                    if (!upResp.ok) continue;
+                    const upData = await upResp.json();
+                    filenames[idx] = upData.name;
+                } catch (e) {
+                    console.warn("[LanPaint] preview auto-load keyframe decode failed:", e);
+                }
+            }
+
+            const kw = this._keyframesWidget();
+            if (kw) kw.value = JSON.stringify(filenames);
+            const aw = this.getAudioMaskWidget();
+            if (aw) aw.value = JSON.stringify(payload.audio_intervals || "[]");
+            this._maskVideo = filename;
+
+            if (this.node.widgets_values && this.node.widgets) {
+                for (const ww of [kw, aw]) {
+                    if (!ww) continue;
+                    const wi = this.node.widgets.indexOf(ww);
+                    if (wi >= 0) this.node.widgets_values[wi] = ww.value;
+                }
+            }
+
+            console.log(
+                "[LanPaint NodeMaskPreview] auto-loaded",
+                Object.keys(filenames).length,
+                "keyframes from mp4 metadata"
+            );
+            return true;
+        } catch (err) {
+            console.warn("[LanPaint] preview video_mask_meta fetch failed:", err);
+            // no metadata could be read: treat like not-found and clear
+            this.timeline.keyframes.clear();
+            this.timeline.sdfCache.clear();
+            const kw = this._keyframesWidget();
+            if (kw) kw.value = "{}";
+            const aw = this.getAudioMaskWidget();
+            if (aw) aw.value = "[]";
+            return false;
+        }
     }
 
     async _reloadKeyframes() {

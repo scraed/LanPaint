@@ -1,0 +1,671 @@
+{
+ "id": "978d3a45-3d13-43c6-8ef9-89dc3e74d6ba",
+ "revision": 0,
+ "last_node_id": 84,
+ "last_link_id": 229,
+ "nodes": [
+  {
+   "id": 78,
+   "type": "CLIPTextEncode",
+   "pos": [
+    314.8565368652344,
+    255.63235473632812
+   ],
+   "size": [
+    422.84503173828125,
+    164.31304931640625
+   ],
+   "flags": {},
+   "order": 2,
+   "mode": 0,
+   "inputs": [
+    {
+     "label": "clip",
+     "name": "clip",
+     "type": "CLIP",
+     "link": 194
+    }
+   ],
+   "outputs": [
+    {
+     "label": "CONDITIONING",
+     "name": "CONDITIONING",
+     "type": "CONDITIONING",
+     "slot_index": 0,
+     "links": [
+      195
+     ]
+    }
+   ],
+   "title": "CLIP Text Encode (Positive Prompt)",
+   "properties": {
+    "cnr_id": "comfy-core",
+    "ver": "0.3.26",
+    "Node name for S&R": "CLIPTextEncode"
+   },
+   "widgets_values": [
+    "cute anime girl with massive fluffy fennec ears and a big fluffy tail blonde messy long hair blue eyes wearing a maid outfit with a long black gold leaf pattern dress and a white apron mouth open placing a fancy black forest cake with candles on top of a dinner table of an old dark Victorian mansion lit by candlelight with a bright window to the foggy forest and very expensive stuff everywhere there are paintings on the walls"
+   ],
+   "color": "#232",
+   "bgcolor": "#353"
+  },
+  {
+   "id": 80,
+   "type": "CLIPTextEncode",
+   "pos": [
+    362.7684020996094,
+    481.0662536621094
+   ],
+   "size": [
+    422.84503173828125,
+    164.31304931640625
+   ],
+   "flags": {
+    "collapsed": true
+   },
+   "order": 3,
+   "mode": 0,
+   "inputs": [
+    {
+     "label": "clip",
+     "name": "clip",
+     "type": "CLIP",
+     "link": 196
+    }
+   ],
+   "outputs": [
+    {
+     "label": "CONDITIONING",
+     "name": "CONDITIONING",
+     "type": "CONDITIONING",
+     "slot_index": 0,
+     "links": [
+      210
+     ]
+    }
+   ],
+   "title": "CLIP Text Encode (Negative Prompt)",
+   "properties": {
+    "cnr_id": "comfy-core",
+    "ver": "0.3.26",
+    "Node name for S&R": "CLIPTextEncode"
+   },
+   "widgets_values": [
+    ""
+   ],
+   "color": "#322",
+   "bgcolor": "#533"
+  },
+  {
+   "id": 79,
+   "type": "FluxGuidance",
+   "pos": [
+    529.1380615234375,
+    156.20236206054688
+   ],
+   "size": [
+    211.60000610351562,
+    58
+   ],
+   "flags": {},
+   "order": 5,
+   "mode": 0,
+   "inputs": [
+    {
+     "label": "conditioning",
+     "name": "conditioning",
+     "type": "CONDITIONING",
+     "link": 195
+    }
+   ],
+   "outputs": [
+    {
+     "label": "CONDITIONING",
+     "name": "CONDITIONING",
+     "type": "CONDITIONING",
+     "slot_index": 0,
+     "links": [
+      207
+     ]
+    }
+   ],
+   "properties": {
+    "cnr_id": "comfy-core",
+    "ver": "0.3.26",
+    "Node name for S&R": "FluxGuidance"
+   },
+   "widgets_values": [
+    3.5
+   ]
+  },
+  {
+   "id": 77,
+   "type": "CheckpointLoaderSimple",
+   "pos": [
+    -66.25785064697266,
+    484.081787109375
+   ],
+   "size": [
+    315,
+    98
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "label": "MODEL",
+     "name": "MODEL",
+     "type": "MODEL",
+     "slot_index": 0,
+     "links": [
+      197
+     ]
+    },
+    {
+     "label": "CLIP",
+     "name": "CLIP",
+     "type": "CLIP",
+     "slot_index": 1,
+     "links": [
+      194,
+      196
+     ]
+    },
+    {
+     "label": "VAE",
+     "name": "VAE",
+     "type": "VAE",
+     "slot_index": 2,
+     "links": [
+      222,
+      226
+     ]
+    }
+   ],
+   "properties": {
+    "cnr_id": "comfy-core",
+    "ver": "0.3.26",
+    "Node name for S&R": "CheckpointLoaderSimple"
+   },
+   "widgets_values": [
+    "flux1-dev-fp8.safetensors"
+   ]
+  },
+  {
+   "id": 73,
+   "type": "LanPaint_KSampler",
+   "pos": [
+    1005.0399780273438,
+    296.9553527832031
+   ],
+   "size": [
+    413.6495666503906,
+    596
+   ],
+   "flags": {},
+   "order": 7,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 197
+    },
+    {
+     "name": "positive",
+     "type": "CONDITIONING",
+     "link": 207
+    },
+    {
+     "name": "negative",
+     "type": "CONDITIONING",
+     "link": 210
+    },
+    {
+     "name": "latent_image",
+     "type": "LATENT",
+     "link": 224
+    }
+   ],
+   "outputs": [
+    {
+     "name": "LATENT",
+     "type": "LATENT",
+     "slot_index": 0,
+     "links": [
+      225
+     ]
+    }
+   ],
+   "properties": {
+    "cnr_id": "LanPaint",
+    "ver": "56bd6c04e89124cd06682b304245d6ddf8b20522",
+    "Node name for S&R": "LanPaint_KSampler"
+   },
+   "widgets_values": [
+    0,
+    "fixed",
+    30,
+    1,
+    "euler",
+    "simple",
+    1,
+    5,
+    "Image First",
+    "LanPaint KSampler. Recommend steps 50, LanPaint NumSteps 1-20 depending on the difficulty of task. LanPaint_EndSigma = 3.0 for anime style, 0.6 for realistic style. For more information, visit https://github.com/scraed/LanPaint",
+    "🖼️ Image Inpainting"
+   ]
+  },
+  {
+   "id": 48,
+   "type": "SaveImage",
+   "pos": [
+    1075.49169921875,
+    1167.2703857421875
+   ],
+   "size": [
+    311.2532653808594,
+    484.7096252441406
+   ],
+   "flags": {},
+   "order": 9,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 229
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "cnr_id": "comfy-core",
+    "ver": "0.3.23"
+   },
+   "widgets_values": [
+    "ComfyUI"
+   ]
+  },
+  {
+   "id": 75,
+   "type": "LoadImage",
+   "pos": [
+    45.954593658447266,
+    1150.45556640625
+   ],
+   "size": [
+    266.13720703125,
+    487.1314697265625
+   ],
+   "flags": {},
+   "order": 1,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      221,
+      227
+     ]
+    },
+    {
+     "name": "MASK",
+     "type": "MASK",
+     "links": [
+      221,
+      227
+     ]
+    }
+   ],
+   "properties": {
+    "cnr_id": "comfy-core",
+    "ver": "0.3.27",
+    "Node name for S&R": "LoadImage"
+   },
+   "widgets_values": [
+    "Example_7_Masked.png",
+    "image"
+   ]
+  },
+  {
+   "id": 83,
+   "type": "LanPaint_ImageEncode",
+   "pos": [
+    627,
+    780
+   ],
+   "size": [
+    195.3150390625,
+    66
+   ],
+   "flags": {},
+   "order": 4,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "image",
+     "name": "image",
+     "type": "IMAGE",
+     "link": 221
+    },
+    {
+     "localized_name": "vae",
+     "name": "vae",
+     "type": "VAE",
+     "link": 222
+    },
+    {
+     "localized_name": "mask",
+     "name": "mask",
+     "shape": 7,
+     "type": "MASK",
+     "link": 223
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "latent",
+     "name": "latent",
+     "type": "LATENT",
+     "links": [
+      224
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LanPaint_ImageEncode"
+   }
+  },
+  {
+   "id": 84,
+   "type": "LanPaint_ImageDecode",
+   "pos": [
+    1755,
+    780
+   ],
+   "size": [
+    270,
+    118
+   ],
+   "flags": {},
+   "order": 6,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "samples",
+     "name": "samples",
+     "type": "LATENT",
+     "link": 225
+    },
+    {
+     "localized_name": "vae",
+     "name": "vae",
+     "type": "VAE",
+     "link": 226
+    },
+    {
+     "localized_name": "image",
+     "name": "image",
+     "shape": 7,
+     "type": "IMAGE",
+     "link": 227
+    },
+    {
+     "localized_name": "mask",
+     "name": "mask",
+     "shape": 7,
+     "type": "MASK",
+     "link": 228
+    },
+    {
+     "localized_name": "blend_overlap",
+     "name": "blend_overlap",
+     "shape": 7,
+     "type": "INT",
+     "widget": {
+      "name": "blend_overlap"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "image",
+     "name": "image",
+     "type": "IMAGE",
+     "links": [
+      229
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LanPaint_ImageDecode"
+   },
+   "widgets_values": [
+    9
+   ]
+  }
+ ],
+ "links": [
+  [
+   194,
+   77,
+   1,
+   78,
+   0,
+   "CLIP"
+  ],
+  [
+   195,
+   78,
+   0,
+   79,
+   0,
+   "CONDITIONING"
+  ],
+  [
+   196,
+   77,
+   1,
+   80,
+   0,
+   "CLIP"
+  ],
+  [
+   197,
+   77,
+   0,
+   73,
+   0,
+   "MODEL"
+  ],
+  [
+   207,
+   79,
+   0,
+   73,
+   1,
+   "CONDITIONING"
+  ],
+  [
+   210,
+   80,
+   0,
+   73,
+   2,
+   "CONDITIONING"
+  ],
+  [
+   221,
+   75,
+   0,
+   83,
+   0,
+   "IMAGE"
+  ],
+  [
+   222,
+   77,
+   2,
+   83,
+   1,
+   "VAE"
+  ],
+  [
+   223,
+   75,
+   1,
+   83,
+   2,
+   "MASK"
+  ],
+  [
+   224,
+   83,
+   0,
+   73,
+   3,
+   "LATENT"
+  ],
+  [
+   225,
+   73,
+   0,
+   84,
+   0,
+   "LATENT"
+  ],
+  [
+   226,
+   77,
+   2,
+   84,
+   1,
+   "VAE"
+  ],
+  [
+   227,
+   75,
+   0,
+   84,
+   2,
+   "IMAGE"
+  ],
+  [
+   228,
+   75,
+   1,
+   84,
+   3,
+   "MASK"
+  ],
+  [
+   229,
+   84,
+   0,
+   48,
+   0,
+   "IMAGE"
+  ]
+ ],
+ "groups": [
+  {
+   "id": 1,
+   "title": "Mask image for inpainting.",
+   "bounding": [
+    36.04227828979492,
+    989.7313232421875,
+    278.89093017578125,
+    669.3414916992188
+   ],
+   "color": "#3f789e",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 2,
+   "title": "Convert Latents for LanPaint",
+   "bounding": [
+    286.0640563964844,
+    714.343505859375,
+    489.16796875,
+    197.81044006347656
+   ],
+   "color": "#3f789e",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 3,
+   "title": "Load Model and Set Prompts",
+   "bounding": [
+    -78.9311294555664,
+    176.08712768554688,
+    1006.1721801757812,
+    514.258544921875
+   ],
+   "color": "#3f789e",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 4,
+   "title": "Inpaint with the LanPaint KSampler",
+   "bounding": [
+    960.8922729492188,
+    179.17588806152344,
+    474.8909606933594,
+    630.4742431640625
+   ],
+   "color": "#3f789e",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 5,
+   "title": "LanPaint OutPut",
+   "bounding": [
+    1085.6029052734375,
+    994.0775756835938,
+    345.4561767578125,
+    669.4969482421875
+   ],
+   "color": "#3f789e",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 11,
+   "title": "LanPaint",
+   "bounding": [
+    -262.59381103515625,
+    140.46656799316406,
+    1737.328857421875,
+    797.4443359375
+   ],
+   "color": "#3f789e",
+   "font_size": 24,
+   "flags": {}
+  }
+ ],
+ "config": {},
+ "extra": {
+  "ds": {
+   "scale": 0.35049389948139237,
+   "offset": [
+    348.866804381099,
+    308.65057628971834
+   ]
+  },
+  "frontendVersion": "1.27.10",
+  "node_versions": {
+   "comfy-core": "0.3.18",
+   "LanPaint": "0f509469ed2cd60c6032f739e282aad5dfc06166"
+  }
+ },
+ "version": 0.4
+}

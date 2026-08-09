@@ -1,0 +1,731 @@
+{
+ "id": "11cce4ab-536b-4f42-a95c-0be437d04ace",
+ "revision": 0,
+ "last_node_id": 137,
+ "last_link_id": 364,
+ "nodes": [
+  {
+   "id": 74,
+   "type": "LanPaint_KSampler",
+   "pos": [
+    276.219970703125,
+    179.55892944335938
+   ],
+   "size": [
+    388.97625732421875,
+    572
+   ],
+   "flags": {},
+   "order": 17,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 325
+    },
+    {
+     "name": "positive",
+     "type": "CONDITIONING",
+     "link": 323
+    },
+    {
+     "name": "negative",
+     "type": "CONDITIONING",
+     "link": 324
+    },
+    {
+     "name": "latent_image",
+     "type": "LATENT",
+     "link": 359
+    }
+   ],
+   "outputs": [
+    {
+     "name": "LATENT",
+     "type": "LATENT",
+     "slot_index": 0,
+     "links": [
+      360
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LanPaint_KSampler",
+    "cnr_id": "LanPaint",
+    "ver": "56bd6c04e89124cd06682b304245d6ddf8b20522"
+   },
+   "widgets_values": [
+    0,
+    "fixed",
+    20,
+    4,
+    "euler",
+    "simple",
+    1,
+    5,
+    "Image First",
+    "LanPaint KSampler. For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star ⭐️!",
+    "🖼️ Image Inpainting",
+    "lanpaint_star_button"
+   ]
+  },
+  {
+   "id": 113,
+   "type": "SaveImage",
+   "pos": [
+    807.1268310546875,
+    868.395263671875
+   ],
+   "size": [
+    311.2532653808594,
+    484.7096252441406
+   ],
+   "flags": {},
+   "order": 20,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 364
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "cnr_id": "comfy-core",
+    "ver": "0.3.23"
+   },
+   "widgets_values": [
+    "ComfyUI"
+   ]
+  },
+  {
+   "id": 117,
+   "type": "CLIPLoader",
+   "pos": [
+    -824.4296875,
+    177.9814910888672
+   ],
+   "size": [
+    330,
+    110
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "CLIP",
+     "type": "CLIP",
+     "slot_index": 0,
+     "links": [
+      318,
+      319
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "CLIPLoader",
+    "cnr_id": "comfy-core",
+    "ver": "0.3.48",
+    "models": [
+     {
+      "name": "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors",
+      "directory": "text_encoders"
+     }
+    ],
+    "enableTabs": false,
+    "tabWidth": 65,
+    "tabXOffset": 10,
+    "hasSecondTab": false,
+    "secondTabText": "Send Back",
+    "secondTabOffset": 80,
+    "secondTabWidth": 65,
+    "widget_ue_connectable": {}
+   },
+   "widgets_values": [
+    "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+    "qwen_image",
+    "default"
+   ]
+  },
+  {
+   "id": 122,
+   "type": "ModelSamplingAuraFlow",
+   "pos": [
+    -34.14249038696289,
+    -43.64523696899414
+   ],
+   "size": [
+    300,
+    58
+   ],
+   "flags": {},
+   "order": 7,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 320
+    }
+   ],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      325
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "ModelSamplingAuraFlow",
+    "cnr_id": "comfy-core",
+    "ver": "0.3.48",
+    "enableTabs": false,
+    "tabWidth": 65,
+    "tabXOffset": 10,
+    "hasSecondTab": false,
+    "secondTabText": "Send Back",
+    "secondTabOffset": 80,
+    "secondTabWidth": 65,
+    "widget_ue_connectable": {}
+   },
+   "widgets_values": [
+    3.5
+   ]
+  },
+  {
+   "id": 119,
+   "type": "UNETLoader",
+   "pos": [
+    -824.4296875,
+    37.98154830932617
+   ],
+   "size": [
+    330,
+    90
+   ],
+   "flags": {},
+   "order": 1,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "slot_index": 0,
+     "links": [
+      320
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "UNETLoader",
+    "cnr_id": "comfy-core",
+    "ver": "0.3.48",
+    "models": [
+     {
+      "name": "qwen_image_fp8_e4m3fn.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/diffusion_models/qwen_image_fp8_e4m3fn.safetensors",
+      "directory": "diffusion_models"
+     }
+    ],
+    "enableTabs": false,
+    "tabWidth": 65,
+    "tabXOffset": 10,
+    "hasSecondTab": false,
+    "secondTabText": "Send Back",
+    "secondTabOffset": 80,
+    "secondTabWidth": 65,
+    "widget_ue_connectable": {}
+   },
+   "widgets_values": [
+    "qwen_image_fp8_e4m3fn.safetensors",
+    "default"
+   ]
+  },
+  {
+   "id": 128,
+   "type": "MarkdownNote",
+   "pos": [
+    715.929931640625,
+    371.1071472167969
+   ],
+   "size": [
+    300,
+    190
+   ],
+   "flags": {},
+   "order": 2,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "title": "KSampler settings",
+   "properties": {},
+   "widgets_values": [
+    "Decrease **LanPaint_NumSteps** for faster generation. \n"
+   ],
+   "color": "#432",
+   "bgcolor": "#653"
+  },
+  {
+   "id": 123,
+   "type": "LoadImage",
+   "pos": [
+    -935.2606748101325,
+    786.6170753867922
+   ],
+   "size": [
+    262.12347412109375,
+    487.22296142578125
+   ],
+   "flags": {},
+   "order": 3,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "slot_index": 0,
+     "links": [
+      356,
+      362
+     ]
+    },
+    {
+     "name": "MASK",
+     "type": "MASK",
+     "slot_index": 1,
+     "links": [
+      357,
+      363
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoadImage",
+    "cnr_id": "comfy-core",
+    "ver": "0.3.23"
+   },
+   "widgets_values": [
+    "Example_12_Masked.png",
+    "image"
+   ]
+  },
+  {
+   "id": 118,
+   "type": "VAELoader",
+   "pos": [
+    -824.4296875,
+    327.9817199707031
+   ],
+   "size": [
+    330,
+    60
+   ],
+   "flags": {},
+   "order": 4,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "VAE",
+     "type": "VAE",
+     "slot_index": 0,
+     "links": [
+      358,
+      361
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "VAELoader",
+    "cnr_id": "comfy-core",
+    "ver": "0.3.48",
+    "models": [
+     {
+      "name": "qwen_image_vae.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_image_vae.safetensors",
+      "directory": "vae"
+     }
+    ],
+    "enableTabs": false,
+    "tabWidth": 65,
+    "tabXOffset": 10,
+    "hasSecondTab": false,
+    "secondTabText": "Send Back",
+    "secondTabOffset": 80,
+    "secondTabWidth": 65,
+    "widget_ue_connectable": {}
+   },
+   "widgets_values": [
+    "qwen_image_vae.safetensors"
+   ]
+  },
+  {
+   "id": 121,
+   "type": "CLIPTextEncode",
+   "pos": [
+    -454.4298095703125,
+    247.9816436767578
+   ],
+   "size": [
+    425.27801513671875,
+    180.6060791015625
+   ],
+   "flags": {},
+   "order": 6,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "clip",
+     "type": "CLIP",
+     "link": 319
+    }
+   ],
+   "outputs": [
+    {
+     "name": "CONDITIONING",
+     "type": "CONDITIONING",
+     "slot_index": 0,
+     "links": [
+      324
+     ]
+    }
+   ],
+   "title": "CLIP Text Encode (Negative Prompt)",
+   "properties": {
+    "Node name for S&R": "CLIPTextEncode",
+    "cnr_id": "comfy-core",
+    "ver": "0.3.48",
+    "enableTabs": false,
+    "tabWidth": 65,
+    "tabXOffset": 10,
+    "hasSecondTab": false,
+    "secondTabText": "Send Back",
+    "secondTabOffset": 80,
+    "secondTabWidth": 65,
+    "widget_ue_connectable": {}
+   },
+   "widgets_values": [
+    " low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs"
+   ],
+   "color": "#322",
+   "bgcolor": "#533"
+  },
+  {
+   "id": 120,
+   "type": "CLIPTextEncode",
+   "pos": [
+    -454.86480712890625,
+    41.89194869995117
+   ],
+   "size": [
+    422.84503173828125,
+    164.31304931640625
+   ],
+   "flags": {},
+   "order": 5,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "clip",
+     "type": "CLIP",
+     "link": 318
+    }
+   ],
+   "outputs": [
+    {
+     "name": "CONDITIONING",
+     "type": "CONDITIONING",
+     "slot_index": 0,
+     "links": [
+      323
+     ]
+    }
+   ],
+   "title": "CLIP Text Encode (Positive Prompt)",
+   "properties": {
+    "Node name for S&R": "CLIPTextEncode",
+    "cnr_id": "comfy-core",
+    "ver": "0.3.48",
+    "enableTabs": false,
+    "tabWidth": 65,
+    "tabXOffset": 10,
+    "hasSecondTab": false,
+    "secondTabText": "Send Back",
+    "secondTabOffset": 80,
+    "secondTabWidth": 65,
+    "widget_ue_connectable": {}
+   },
+   "widgets_values": [
+    "Cyberpunk-style Einstein portrait: He wears a sleek black coat with glowing cyan circuit patterns, silver-rimmed cybernetic glasses (lenses display faint data streams), and his hair has subtle neon blue highlights. His expression is calm, with a faint smile. Behind him: a dark, rain-washed cybercity backdrop—towering skyscrapers with flickering holographic ads, wet pavement reflecting neon pink/magenta lights. In front of him: giant, glowing white 3D text of \"LanPaint\", with electric blue energy pulses swirling around the equation. Cinematic lighting, hyper-detailed textures, rain droplets visible in the air."
+   ],
+   "color": "#232",
+   "bgcolor": "#353"
+  },
+  {
+   "id": 136,
+   "type": "LanPaint_ImageEncode",
+   "pos": [
+    4360,
+    2000
+   ],
+   "size": [
+    270,
+    110
+   ],
+   "flags": {},
+   "order": 50,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "image",
+     "name": "image",
+     "type": "IMAGE",
+     "link": 356
+    },
+    {
+     "localized_name": "vae",
+     "name": "vae",
+     "type": "VAE",
+     "link": 358
+    },
+    {
+     "localized_name": "mask",
+     "name": "mask",
+     "type": "MASK",
+     "link": 357
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "latent",
+     "name": "latent",
+     "type": "LATENT",
+     "links": [
+      359
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LanPaint_ImageEncode",
+    "cnr_id": "LanPaint"
+   },
+   "widgets_values": []
+  },
+  {
+   "id": 137,
+   "type": "LanPaint_ImageDecode",
+   "pos": [
+    4670,
+    2000
+   ],
+   "size": [
+    270,
+    150
+   ],
+   "flags": {},
+   "order": 51,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "samples",
+     "name": "samples",
+     "type": "LATENT",
+     "link": 360
+    },
+    {
+     "localized_name": "vae",
+     "name": "vae",
+     "type": "VAE",
+     "link": 361
+    },
+    {
+     "localized_name": "image",
+     "name": "image",
+     "type": "IMAGE",
+     "link": 362
+    },
+    {
+     "localized_name": "mask",
+     "name": "mask",
+     "type": "MASK",
+     "link": 363
+    },
+    {
+     "localized_name": "blend_overlap",
+     "name": "blend_overlap",
+     "type": "INT",
+     "widget": {
+      "name": "blend_overlap"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "image",
+     "name": "image",
+     "type": "IMAGE",
+     "links": [
+      364
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LanPaint_ImageDecode",
+    "cnr_id": "LanPaint"
+   },
+   "widgets_values": [
+    9
+   ]
+  }
+ ],
+ "links": [
+  [
+   318,
+   117,
+   0,
+   120,
+   0,
+   "CLIP"
+  ],
+  [
+   319,
+   117,
+   0,
+   121,
+   0,
+   "CLIP"
+  ],
+  [
+   320,
+   119,
+   0,
+   122,
+   0,
+   "MODEL"
+  ],
+  [
+   323,
+   120,
+   0,
+   74,
+   1,
+   "CONDITIONING"
+  ],
+  [
+   324,
+   121,
+   0,
+   74,
+   2,
+   "CONDITIONING"
+  ],
+  [
+   325,
+   122,
+   0,
+   74,
+   0,
+   "MODEL"
+  ],
+  [
+   356,
+   123,
+   0,
+   136,
+   0,
+   "IMAGE"
+  ],
+  [
+   357,
+   123,
+   1,
+   136,
+   2,
+   "MASK"
+  ],
+  [
+   358,
+   118,
+   0,
+   136,
+   1,
+   "VAE"
+  ],
+  [
+   359,
+   136,
+   0,
+   74,
+   3,
+   "LATENT"
+  ],
+  [
+   360,
+   74,
+   0,
+   137,
+   0,
+   "LATENT"
+  ],
+  [
+   361,
+   118,
+   0,
+   137,
+   1,
+   "VAE"
+  ],
+  [
+   362,
+   123,
+   0,
+   137,
+   2,
+   "IMAGE"
+  ],
+  [
+   363,
+   123,
+   1,
+   137,
+   3,
+   "MASK"
+  ],
+  [
+   364,
+   137,
+   0,
+   113,
+   0,
+   "IMAGE"
+  ]
+ ],
+ "groups": [],
+ "config": {},
+ "extra": {
+  "ds": {
+   "scale": 0.6722341729170042,
+   "offset": [
+    1421.2190992818914,
+    -80.75631642004547
+   ]
+  },
+  "frontendVersion": "1.43.18",
+  "node_versions": {
+   "comfy-core": "0.3.18",
+   "LanPaint": "0f509469ed2cd60c6032f739e282aad5dfc06166"
+  },
+  "groupNodes": {}
+ },
+ "version": 0.4
+}

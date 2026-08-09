@@ -865,7 +865,7 @@ class LanPaint_VideoMaskEditor:
             files = []
         return {
             "required": {
-                "video": (files, {"image_upload": True, "tooltip": "Source video file. Returned as the video output and used by the mask editor preview."}),
+                "video": (files, {"video_upload": True, "tooltip": "Source video file. Returned as the video output and used by the mask editor preview."}),
                 "keyframes": ("STRING", {"default": "{}", "multiline": True, "tooltip": "Hidden: keyframe mask files {\"frame\": \"file.png\"}. Written by the mask editor."}),
                 "audio_mask": ("STRING", {"default": "[]", "multiline": True, "tooltip": "Hidden: audio inpainting intervals [{\"start\": s, \"end\": e}] in seconds. Written by the mask editor."}),
             },
@@ -1170,8 +1170,11 @@ class LanPaint_ImageEncode:
     Replaces the chain VAEEncode -> SetLatentNoiseMask (plus the manual
     ImageScale of the mask) with one node. The mask is snapped to the latent's
     actual spatial size (nearest-exact, the LanPaint mask convention), so
-    whatever the VAE's padding does, the mask always matches. Without a mask
-    this is a plain encode.
+    whatever the VAE's padding does, the mask always matches. Works with
+    image VAEs (4D latent) and video VAEs encoding a single image (5D latent
+    [B, C, T, H, W], e.g. the Hunyuan video VAE): the mask is attached as
+    [1, 1, T, H, W] and the sampler's prep handles it. Without a mask this is
+    a plain encode.
     """
 
     @classmethod
@@ -1194,10 +1197,10 @@ class LanPaint_ImageEncode:
 
     def encode(self, image, vae, mask=None):
         z = vae.encode(image)
-        if len(z.shape) != 4:
+        ndim = len(z.shape)
+        if ndim not in (4, 5):
             raise ValueError(
-                "LanPaint_ImageEncode expects an image VAE (latent [B, C, H, W]); "
-                f"got a {len(z.shape)}D latent — use LanPaint_AVEncode for video."
+                f"LanPaint_ImageEncode expects a 4D or 5D latent, got {ndim}D"
             )
         latent = {"samples": z}
         if mask is not None:
@@ -1206,12 +1209,20 @@ class LanPaint_ImageEncode:
                 m = m[0, 0]
             elif m.ndim == 3:
                 m = m[0]
-            target = z.shape[-2:]
-            if tuple(m.shape) != target:
-                m = torch.nn.functional.interpolate(
-                    m.unsqueeze(0).unsqueeze(0), size=target, mode="nearest-exact"
-                )[0, 0]
-            latent["noise_mask"] = m.unsqueeze(0).unsqueeze(0)
+            if ndim == 4:
+                target = z.shape[-2:]
+                if tuple(m.shape) != target:
+                    m = torch.nn.functional.interpolate(
+                        m.unsqueeze(0).unsqueeze(0), size=target, mode="nearest-exact"
+                    )[0, 0]
+                latent["noise_mask"] = m.unsqueeze(0).unsqueeze(0)
+            else:  # 5D video-style VAE: snap to (T, H, W), one mask frame per token
+                t, h, w = z.shape[-3:]
+                if tuple(m.shape) != (h, w):
+                    m = torch.nn.functional.interpolate(
+                        m.unsqueeze(0).unsqueeze(0), size=(h, w), mode="nearest-exact"
+                    )[0, 0]
+                latent["noise_mask"] = m.unsqueeze(0).unsqueeze(0).unsqueeze(2).expand(1, 1, t, h, w)
         return (latent,)
 
 

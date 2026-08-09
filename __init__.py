@@ -92,3 +92,17 @@ except ModuleNotFoundError:
     from .src.LanPaint.nodes import NODE_DISPLAY_NAME_MAPPINGS
 
 WEB_DIRECTORY = "./web"
+
+
+# ---------------------------------------------------------------------------
+# Server routes — registered only when running inside ComfyUI (the ``server``
+# module and ``folder_paths`` are ComfyUI internals not available in CI/tests).
+# ---------------------------------------------------------------------------
+try:
+    from server import PromptServer  # noqa: F811 (re-export for convenience)
+
+    from .src.LanPaint.videometa import register_routes
+
+    register_routes(PromptServer.instance)
+except Exception:
+    pass  # not running inside ComfyUI — routes are not needed

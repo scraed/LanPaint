@@ -1,0 +1,759 @@
+{
+ "id": "26fb90cb-eb4a-422e-97d0-8b84dd6c3302",
+ "revision": 0,
+ "last_node_id": 79,
+ "last_link_id": 211,
+ "nodes": [
+  {
+   "id": 6,
+   "type": "CLIPTextEncode",
+   "pos": [
+    333.06903076171875,
+    249.68698120117188
+   ],
+   "size": [
+    422.84503173828125,
+    164.31304931640625
+   ],
+   "flags": {},
+   "order": 2,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "clip",
+     "name": "clip",
+     "type": "CLIP",
+     "link": 81
+    },
+    {
+     "localized_name": "text",
+     "name": "text",
+     "type": "STRING",
+     "widget": {
+      "name": "text"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "CONDITIONING",
+     "name": "CONDITIONING",
+     "type": "CONDITIONING",
+     "slot_index": 0,
+     "links": [
+      199
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "CLIPTextEncode",
+    "cnr_id": "comfy-core",
+    "ver": "0.3.23"
+   },
+   "widgets_values": [
+    "1girl, blue shirt, masterpiece, high score, great score, absurdres"
+   ]
+  },
+  {
+   "id": 7,
+   "type": "CLIPTextEncode",
+   "pos": [
+    335.06903076171875,
+    462.68701171875
+   ],
+   "size": [
+    425.27801513671875,
+    180.6060791015625
+   ],
+   "flags": {},
+   "order": 3,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "clip",
+     "name": "clip",
+     "type": "CLIP",
+     "link": 82
+    },
+    {
+     "localized_name": "text",
+     "name": "text",
+     "type": "STRING",
+     "widget": {
+      "name": "text"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "CONDITIONING",
+     "name": "CONDITIONING",
+     "type": "CONDITIONING",
+     "slot_index": 0,
+     "links": [
+      200
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "CLIPTextEncode",
+    "cnr_id": "comfy-core",
+    "ver": "0.3.23"
+   },
+   "widgets_values": [
+    "lowres, bad anatomy, bad hands, text, error, missing finger, extra digits, fewer digits, cropped, worst quality, low quality, low score, bad score, average score, signature, watermark, username, blurry, nude, NSFW"
+   ]
+  },
+  {
+   "id": 78,
+   "type": "LanPaint_ImageEncode",
+   "pos": [
+    627.3978942185906,
+    984.308971592649
+   ],
+   "size": [
+    195.3150390625,
+    66
+   ],
+   "flags": {},
+   "order": 4,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "image",
+     "name": "image",
+     "type": "IMAGE",
+     "link": 204
+    },
+    {
+     "localized_name": "vae",
+     "name": "vae",
+     "type": "VAE",
+     "link": 203
+    },
+    {
+     "localized_name": "mask",
+     "name": "mask",
+     "shape": 7,
+     "type": "MASK",
+     "link": 205
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "latent",
+     "name": "latent",
+     "type": "LATENT",
+     "links": [
+      206
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LanPaint_ImageEncode"
+   }
+  },
+  {
+   "id": 73,
+   "type": "LanPaint_KSampler",
+   "pos": [
+    992.965419921875,
+    268.686944885254
+   ],
+   "size": [
+    413.6495666503906,
+    572
+   ],
+   "flags": {},
+   "order": 5,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "model",
+     "name": "model",
+     "type": "MODEL",
+     "link": 198
+    },
+    {
+     "localized_name": "positive",
+     "name": "positive",
+     "type": "CONDITIONING",
+     "link": 199
+    },
+    {
+     "localized_name": "negative",
+     "name": "negative",
+     "type": "CONDITIONING",
+     "link": 200
+    },
+    {
+     "localized_name": "latent_image",
+     "name": "latent_image",
+     "type": "LATENT",
+     "link": 206
+    },
+    {
+     "localized_name": "seed",
+     "name": "seed",
+     "type": "INT",
+     "widget": {
+      "name": "seed"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "steps",
+     "name": "steps",
+     "type": "INT",
+     "widget": {
+      "name": "steps"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "cfg",
+     "name": "cfg",
+     "type": "FLOAT",
+     "widget": {
+      "name": "cfg"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "sampler_name",
+     "name": "sampler_name",
+     "type": "COMBO",
+     "widget": {
+      "name": "sampler_name"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "scheduler",
+     "name": "scheduler",
+     "type": "COMBO",
+     "widget": {
+      "name": "scheduler"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "denoise",
+     "name": "denoise",
+     "type": "FLOAT",
+     "widget": {
+      "name": "denoise"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "LanPaint_NumSteps",
+     "name": "LanPaint_NumSteps",
+     "type": "INT",
+     "widget": {
+      "name": "LanPaint_NumSteps"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "LanPaint_PromptMode",
+     "name": "LanPaint_PromptMode",
+     "type": "COMBO",
+     "widget": {
+      "name": "LanPaint_PromptMode"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "LanPaint_Info",
+     "name": "LanPaint_Info",
+     "type": "STRING",
+     "widget": {
+      "name": "LanPaint_Info"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "Inpainting_mode",
+     "name": "Inpainting_mode",
+     "type": "COMBO",
+     "widget": {
+      "name": "Inpainting_mode"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "LATENT",
+     "name": "LATENT",
+     "type": "LATENT",
+     "slot_index": 0,
+     "links": [
+      207
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LanPaint_KSampler",
+    "cnr_id": "LanPaint",
+    "ver": "56bd6c04e89124cd06682b304245d6ddf8b20522"
+   },
+   "widgets_values": [
+    0,
+    "fixed",
+    20,
+    5,
+    "euler",
+    "karras",
+    1,
+    5,
+    "Image First",
+    "LanPaint KSampler. For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star ⭐️!",
+    "🖼️ Image Inpainting",
+    "lanpaint_star_button"
+   ]
+  },
+  {
+   "id": 29,
+   "type": "CheckpointLoaderSimple",
+   "pos": [
+    -62.627220153808594,
+    407.01416015625
+   ],
+   "size": [
+    315,
+    98
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "ckpt_name",
+     "name": "ckpt_name",
+     "type": "COMBO",
+     "widget": {
+      "name": "ckpt_name"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "MODEL",
+     "name": "MODEL",
+     "type": "MODEL",
+     "slot_index": 0,
+     "links": [
+      198
+     ]
+    },
+    {
+     "localized_name": "CLIP",
+     "name": "CLIP",
+     "type": "CLIP",
+     "slot_index": 1,
+     "links": [
+      81,
+      82
+     ]
+    },
+    {
+     "localized_name": "VAE",
+     "name": "VAE",
+     "type": "VAE",
+     "slot_index": 2,
+     "links": [
+      203,
+      208
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "CheckpointLoaderSimple",
+    "cnr_id": "comfy-core",
+    "ver": "0.3.23"
+   },
+   "widgets_values": [
+    "animagineXL40_v4Opt.safetensors"
+   ]
+  },
+  {
+   "id": 20,
+   "type": "LoadImage",
+   "pos": [
+    45.70227813720703,
+    1147.2928466796875
+   ],
+   "size": [
+    262.12347412109375,
+    487.22296142578125
+   ],
+   "flags": {},
+   "order": 1,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "image",
+     "name": "image",
+     "type": "COMBO",
+     "widget": {
+      "name": "image"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "choose file to upload",
+     "name": "upload",
+     "type": "IMAGEUPLOAD",
+     "widget": {
+      "name": "upload"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "IMAGE",
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "slot_index": 0,
+     "links": [
+      204,
+      209
+     ]
+    },
+    {
+     "localized_name": "MASK",
+     "name": "MASK",
+     "type": "MASK",
+     "slot_index": 1,
+     "links": [
+      205,
+      210
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoadImage",
+    "cnr_id": "comfy-core",
+    "ver": "0.3.23"
+   },
+   "widgets_values": [
+    "Masked_Load_Me_in_Loader (19).png",
+    "image"
+   ]
+  },
+  {
+   "id": 75,
+   "type": "SaveImage",
+   "pos": [
+    2279.375686842185,
+    747.0061447670435
+   ],
+   "size": [
+    311.2532653808594,
+    484.7096252441406
+   ],
+   "flags": {},
+   "order": 7,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "images",
+     "name": "images",
+     "type": "IMAGE",
+     "link": 211
+    },
+    {
+     "localized_name": "filename_prefix",
+     "name": "filename_prefix",
+     "type": "STRING",
+     "widget": {
+      "name": "filename_prefix"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "images",
+     "name": "images",
+     "type": "IMAGE",
+     "links": null
+    }
+   ],
+   "properties": {
+    "cnr_id": "comfy-core",
+    "ver": "0.3.23"
+   },
+   "widgets_values": [
+    "ComfyUI"
+   ]
+  },
+  {
+   "id": 79,
+   "type": "LanPaint_ImageDecode",
+   "pos": [
+    1755.3697160664874,
+    781.9181675937066
+   ],
+   "size": [
+    270,
+    118
+   ],
+   "flags": {},
+   "order": 6,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "samples",
+     "name": "samples",
+     "type": "LATENT",
+     "link": 207
+    },
+    {
+     "localized_name": "vae",
+     "name": "vae",
+     "type": "VAE",
+     "link": 208
+    },
+    {
+     "localized_name": "image",
+     "name": "image",
+     "shape": 7,
+     "type": "IMAGE",
+     "link": 209
+    },
+    {
+     "localized_name": "mask",
+     "name": "mask",
+     "shape": 7,
+     "type": "MASK",
+     "link": 210
+    },
+    {
+     "localized_name": "blend_overlap",
+     "name": "blend_overlap",
+     "shape": 7,
+     "type": "INT",
+     "widget": {
+      "name": "blend_overlap"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "image",
+     "name": "image",
+     "type": "IMAGE",
+     "links": [
+      211
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LanPaint_ImageDecode"
+   },
+   "widgets_values": [
+    9
+   ]
+  }
+ ],
+ "links": [
+  [
+   81,
+   29,
+   1,
+   6,
+   0,
+   "CLIP"
+  ],
+  [
+   82,
+   29,
+   1,
+   7,
+   0,
+   "CLIP"
+  ],
+  [
+   198,
+   29,
+   0,
+   73,
+   0,
+   "MODEL"
+  ],
+  [
+   199,
+   6,
+   0,
+   73,
+   1,
+   "CONDITIONING"
+  ],
+  [
+   200,
+   7,
+   0,
+   73,
+   2,
+   "CONDITIONING"
+  ],
+  [
+   203,
+   29,
+   2,
+   78,
+   1,
+   "VAE"
+  ],
+  [
+   204,
+   20,
+   0,
+   78,
+   0,
+   "IMAGE"
+  ],
+  [
+   205,
+   20,
+   1,
+   78,
+   2,
+   "MASK"
+  ],
+  [
+   206,
+   78,
+   0,
+   73,
+   3,
+   "LATENT"
+  ],
+  [
+   207,
+   73,
+   0,
+   79,
+   0,
+   "LATENT"
+  ],
+  [
+   208,
+   29,
+   2,
+   79,
+   1,
+   "VAE"
+  ],
+  [
+   209,
+   20,
+   0,
+   79,
+   2,
+   "IMAGE"
+  ],
+  [
+   210,
+   20,
+   1,
+   79,
+   3,
+   "MASK"
+  ],
+  [
+   211,
+   79,
+   0,
+   75,
+   0,
+   "IMAGE"
+  ]
+ ],
+ "groups": [
+  {
+   "id": 1,
+   "title": "Mask image for inpainting.",
+   "bounding": [
+    36.04227828979492,
+    989.7313232421875,
+    278.89093017578125,
+    669.3414916992188
+   ],
+   "color": "#3f789e",
+   "flags": {}
+  },
+  {
+   "id": 2,
+   "title": "Convert Latents for LanPaint",
+   "bounding": [
+    286.0640563964844,
+    714.343505859375,
+    489.16796875,
+    197.81044006347656
+   ],
+   "color": "#3f789e",
+   "flags": {}
+  },
+  {
+   "id": 3,
+   "title": "Load Model and Set Prompts",
+   "bounding": [
+    -78.9311294555664,
+    176.08712768554688,
+    1006.1721801757812,
+    514.258544921875
+   ],
+   "color": "#3f789e",
+   "flags": {}
+  },
+  {
+   "id": 4,
+   "title": "Inpaint with the LanPaint KSampler",
+   "bounding": [
+    960.8922729492188,
+    179.17588806152344,
+    474.8909606933594,
+    630.4742431640625
+   ],
+   "color": "#3f789e",
+   "flags": {}
+  },
+  {
+   "id": 11,
+   "title": "LanPaint",
+   "bounding": [
+    -262.59381103515625,
+    140.46656799316406,
+    1737.328857421875,
+    797.4443359375
+   ],
+   "color": "#3f789e",
+   "flags": {}
+  }
+ ],
+ "config": {},
+ "extra": {
+  "ds": {
+   "scale": 0.8954302432552493,
+   "offset": [
+    -1381.79269847794,
+    -521.6998945185028
+   ]
+  },
+  "frontendVersion": "1.25.10",
+  "node_versions": {
+   "comfy-core": "0.3.18",
+   "LanPaint": "0f509469ed2cd60c6032f739e282aad5dfc06166"
+  }
+ },
+ "version": 0.4
+}
