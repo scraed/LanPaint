@@ -46,7 +46,7 @@ If your inpainting results have wierd (glowing / broken) mask boundary, check th
 
 | Masked Input (paint in the editor) | Mask (visible overlay) | Inpainted Result |
 |:----------------------------------:|:----------------------:|:----------------:|
-| ![Masked Video](https://github.com/scraed/LanPaint/blob/master/examples/Example_29/Masked_LoadMe.mp4) | ![Mask Overlay](https://github.com/scraed/LanPaint/blob/master/examples/Example_29/Masked_LoadMe_MaskOverlay.mp4) | ![Inpainted Video](https://github.com/scraed/LanPaint/blob/master/examples/Example_29/InPainted_Drag_Me_to_ComfyUI.mp4) |
+| ![Masked Video](https://github.com/scraed/LanPaint/blob/master/examples/Example_29/Masked_LoadMe.gif) | ![Mask Overlay](https://github.com/scraed/LanPaint/blob/master/examples/Example_29/Masked_LoadMe_MaskOverlay.gif) | ![Inpainted Video](https://github.com/scraed/LanPaint/blob/master/examples/Example_29/InPainted_Drag_Me_to_ComfyUI.gif) |
 
 Check our latest [MiniMax H3 Example](#minimax-h3-video--audio-inpainting-av-pipeline): paint per-frame video masks and audio intervals in one editor, inpaint video + audio in a single pass, and export the masks into the video file itself.
 
@@ -221,7 +221,7 @@ LanPaint's AV pipeline inpaints video **and audio** together with the MiniMax H3
 
 | Masked Input (paint in the editor) | Mask (visible overlay) | Inpainted Result |
 |:----------------------------------:|:----------------------:|:----------------:|
-| ![Masked Video](https://github.com/scraed/LanPaint/blob/master/examples/Example_29/Masked_LoadMe.mp4) | ![Mask Overlay](https://github.com/scraed/LanPaint/blob/master/examples/Example_29/Masked_LoadMe_MaskOverlay.mp4) | ![Inpainted Video](https://github.com/scraed/LanPaint/blob/master/examples/Example_29/InPainted_Drag_Me_to_ComfyUI.mp4) |
+| ![Masked Video](https://github.com/scraed/LanPaint/blob/master/examples/Example_29/Masked_LoadMe.gif) | ![Mask Overlay](https://github.com/scraed/LanPaint/blob/master/examples/Example_29/Masked_LoadMe_MaskOverlay.gif) | ![Inpainted Video](https://github.com/scraed/LanPaint/blob/master/examples/Example_29/InPainted_Drag_Me_to_ComfyUI.gif) |
 
 [View Workflow & Masks](https://github.com/scraed/LanPaint/tree/master/examples/Example_29) · [Workflow JSON](https://github.com/scraed/LanPaint/blob/master/example_workflows/MiniMax_H3_AV_EncodeDecode_Inpaint.json)
 
