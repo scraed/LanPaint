@@ -138,6 +138,8 @@ Check our latest [Krea2 Example](#example-krea2-inpaintlanpaint-k-sampler-3-step
 - **No Workarounds** – Generates 100% new content (no blending or smoothing) without relying on partial denoising.  
 - **Beyond Inpainting** – You can even use it as a simple way to generate consistent characters. 
 - **Video Mask Editor** – Paint per-frame inpainting masks directly on a video inside ComfyUI (`LanPaint_VideoMaskEditor`): pick the video file, open the editor, paint masks on keyframes, and the masks in between are interpolated automatically with a live preview. Mask = 1 regenerates, 0 keeps.
+- **MiniMax H3 Video + Audio Inpainting** – Inpaint video **and audio** in one pass: paint per-frame video masks and audio intervals in the same editor, encode both streams into one nested latent (`LanPaint_AVEncode`), sample, then `LanPaint_AVDecode` merges the inpainted video/audio back into the original with a mask-blended boundary, preserving the source fps and bit depth.
+- **Masks Live in the Video** – The editor can export the painted masks into the video file itself (mp4 metadata, via a new "masked" copy - the original is never modified). Share that single mp4 and the recipient gets the masks back automatically when they load it.
 
 **Warning**: LanPaint has degraded performance on distillation models, such as Flux.dev, due to a similar [issue with LORA training](https://medium.com/@zhiwangshi28/why-flux-lora-so-hard-to-train-and-how-to-overcome-it-a0c70bc59eaf). Please use low flux guidance (1.0-2.0) to mitigate this [issue](https://github.com/scraed/LanPaint/issues/30).
 
@@ -202,6 +204,28 @@ Extend your videos beyond their original boundaries with LanPaint's video outpai
 [View Workflow & Masks](https://github.com/scraed/LanPaint/tree/master/examples/Example_19)
 
 You need to follow the ComfyUI version of [Wan2.2 T2V workflow](https://docs.comfy.org/tutorials/video/wan/wan2_2) to download and install the T2V model.
+
+### MiniMax H3 Video + Audio Inpainting (AV pipeline)
+
+LanPaint's AV pipeline inpaints video **and audio** together with the MiniMax H3 model. Paint both masks in one editor session, run a single sampler pass on the nested AV latent, and get back a merged video at the original fps and bit depth.
+
+*Example: MiniMax H3, 864x480, 124 frames, LanPaint Sampler Custom (Advanced)*
+
+| Masked Input (paint in the editor) | Inpainted Result |
+|:----------------------------------:|:----------------:|
+| ![Masked Video](https://github.com/scraed/LanPaint/blob/master/examples/Example_29/Masked_LoadMe.mp4) | ![Inpainted Video](https://github.com/scraed/LanPaint/blob/master/examples/Example_29/InPainted_Drag_Me_to_ComfyUI.mp4) |
+
+[View Workflow & Masks](https://github.com/scraed/LanPaint/tree/master/examples/Example_29) · [Workflow JSON](https://github.com/scraed/LanPaint/blob/master/example_workflows/MiniMax_H3_AV_EncodeDecode_Inpaint.json)
+
+**How it works:**
+1. `LanPaint_VideoMaskEditor` – pick the video, open the editor, paint per-frame video masks on keyframes (SDF-interpolated in between) and drag audio intervals on the waveform. Mask = 1 regenerates, 0 keeps.
+2. `LanPaint_AVEncode` – encodes the video frames and the audio track into one nested latent with the masks attached.
+3. Run the sampler as usual (the audio stream runs on its own shifted sigma schedule).
+4. `LanPaint_AVDecode` – decodes the nested latent, merges the inpainted video with the original (mask-blended boundary) and the inpainted audio inside the masked intervals (with a short crossfade), and writes the result at the original fps and bit depth.
+
+**Export masks into the video:** the editor's **Export mask video** button remuxes a new `<name>_masked.mp4` copy with the masks embedded in the file metadata (the original file is never modified). Open that file in the editor later - or share it with someone - and the masks are restored automatically.
+
+Download the models from [MiniMax H3 on Hugging Face](https://huggingface.co/MiniMaxAI/MiniMax-H3) and follow the [ComfyUI MiniMax H3 docs](https://docs.comfy.org/tutorials/video/minimax/minimax_h3).
 
 ### Resource Consumption
 
