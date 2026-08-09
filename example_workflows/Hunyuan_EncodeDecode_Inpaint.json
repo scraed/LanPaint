@@ -515,8 +515,8 @@
     1,
     5,
     "Image First",
-    "LanPaint KSampler. For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star ⭐️!",
-    "🖼️ Image Inpainting"
+    "LanPaint KSampler. For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star \u2b50\ufe0f!",
+    "\ud83d\uddbc\ufe0f Image Inpainting"
    ]
   },
   {
@@ -639,8 +639,8 @@
    "id": 118,
    "type": "LanPaint_ImageEncode",
    "pos": [
-    558,
-    922
+    459.4,
+    239.0
    ],
    "size": [
     300,
@@ -685,8 +685,8 @@
    "id": 119,
    "type": "LanPaint_ImageDecode",
    "pos": [
-    1670,
-    -110
+    1179.4,
+    239.0
    ],
    "size": [
     300,

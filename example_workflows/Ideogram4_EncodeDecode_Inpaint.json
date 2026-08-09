@@ -92,7 +92,7 @@
    "title": "Note: Ideogram 4.0",
    "properties": {},
    "widgets_values": [
-    "### About the model\n\nThe model is trained on **structured JSON captions** (scene summary, style block, background, and optional per-object descriptions with bounding boxes and hex color palettes). Official inference validates prompts against that schema. Guidance uses **flow-matching** with **asymmetric classifier-free guidance** (the unconditional pass drops text tokens)—not a separate negative prompt string.\n\n**NOTE: If you see \"Image blocked by safety filter\" it is because of safety training in the model itself, ComfyUI does not have any safety filter.**\n---\n\n### How to build prompts here\n\n**(a) Raw input**: Paste or type directly into the subgraph. You may use plain natural language, but **structured JSON** (as in the subgraph default) gives the most predictable layout and style control.\n\n**(b) Model-assisted (LLM):** Use the **Ideogram4 Caption Prompt Template** output with any LLM tools to obtain the JSON format prompt"
+    "### About the model\n\nThe model is trained on **structured JSON captions** (scene summary, style block, background, and optional per-object descriptions with bounding boxes and hex color palettes). Official inference validates prompts against that schema. Guidance uses **flow-matching** with **asymmetric classifier-free guidance** (the unconditional pass drops text tokens)\u2014not a separate negative prompt string.\n\n**NOTE: If you see \"Image blocked by safety filter\" it is because of safety training in the model itself, ComfyUI does not have any safety filter.**\n---\n\n### How to build prompts here\n\n**(a) Raw input**: Paste or type directly into the subgraph. You may use plain natural language, but **structured JSON** (as in the subgraph default) gives the most predictable layout and style control.\n\n**(b) Model-assisted (LLM):** Use the **Ideogram4 Caption Prompt Template** output with any LLM tools to obtain the JSON format prompt"
    ],
    "color": "#222",
    "bgcolor": "#000"
@@ -116,7 +116,7 @@
    "title": "Note: Model link",
    "properties": {},
    "widgets_values": [
-    "Guide: [Subgraph](https://docs.comfy.org/interface/features/subgraph)\n\n## Model Links (for Local Users)\n\n**vae**\n\n- [flux2-vae.safetensors](https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors)\n\n**diffusion_models**\n\n- [ideogram4_fp8_scaled.safetensors](https://huggingface.co/Comfy-Org/Ideogram-4/resolve/main/diffusion_models/ideogram4_fp8_scaled.safetensors)\n- [ideogram4_unconditional_fp8_scaled.safetensors](https://huggingface.co/Comfy-Org/Ideogram-4/resolve/main/diffusion_models/ideogram4_unconditional_fp8_scaled.safetensors)\n\n**text_encoders**\n\n- [qwen3vl_8b_fp8_scaled.safetensors](https://huggingface.co/Comfy-Org/Qwen3-VL/resolve/main/text_encoders/qwen3vl_8b_fp8_scaled.safetensors)\n- [gemma4_e4b_it_fp8_scaled.safetensors](https://huggingface.co/Comfy-Org/gemma-4/resolve/main/text_encoders/gemma4_e4b_it_fp8_scaled.safetensors)\n\n\n## Model Storage Location\n\n```\n📂 ComfyUI/\n├── 📂 models/\n│   ├── 📂 vae/\n│   │   └── flux2-vae.safetensors\n│   ├── 📂 diffusion_models/\n│   │   ├── ideogram4_fp8_scaled.safetensors\n│   │   └── ideogram4_unconditional_fp8_scaled.safetensors\n│   └── 📂 text_encoders/\n│       ├── qwen3vl_8b_fp8_scaled.safetensors\n│       └── gemma4_e4b_it_fp8_scaled.safetensors\n```\n\n## Report Issue\n\nNote: Please update ComfyUI first ([guide](https://docs.comfy.org/installation/update_comfyui)) and prepare required models. Desktop/Cloud updates follow stable releases, so some nightly-supported models may not be available yet.\n\n- Cannot run / runtime errors: [ComfyUI/issues](https://github.com/comfyanonymous/ComfyUI/issues)\n- UI / frontend issues: [ComfyUI_frontend/issues](https://github.com/Comfy-Org/ComfyUI_frontend/issues)\n- Workflow issues: [workflow_templates/issues](https://github.com/Comfy-Org/workflow_templates/issues)\n"
+    "Guide: [Subgraph](https://docs.comfy.org/interface/features/subgraph)\n\n## Model Links (for Local Users)\n\n**vae**\n\n- [flux2-vae.safetensors](https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors)\n\n**diffusion_models**\n\n- [ideogram4_fp8_scaled.safetensors](https://huggingface.co/Comfy-Org/Ideogram-4/resolve/main/diffusion_models/ideogram4_fp8_scaled.safetensors)\n- [ideogram4_unconditional_fp8_scaled.safetensors](https://huggingface.co/Comfy-Org/Ideogram-4/resolve/main/diffusion_models/ideogram4_unconditional_fp8_scaled.safetensors)\n\n**text_encoders**\n\n- [qwen3vl_8b_fp8_scaled.safetensors](https://huggingface.co/Comfy-Org/Qwen3-VL/resolve/main/text_encoders/qwen3vl_8b_fp8_scaled.safetensors)\n- [gemma4_e4b_it_fp8_scaled.safetensors](https://huggingface.co/Comfy-Org/gemma-4/resolve/main/text_encoders/gemma4_e4b_it_fp8_scaled.safetensors)\n\n\n## Model Storage Location\n\n```\n\ud83d\udcc2 ComfyUI/\n\u251c\u2500\u2500 \ud83d\udcc2 models/\n\u2502   \u251c\u2500\u2500 \ud83d\udcc2 vae/\n\u2502   \u2502   \u2514\u2500\u2500 flux2-vae.safetensors\n\u2502   \u251c\u2500\u2500 \ud83d\udcc2 diffusion_models/\n\u2502   \u2502   \u251c\u2500\u2500 ideogram4_fp8_scaled.safetensors\n\u2502   \u2502   \u2514\u2500\u2500 ideogram4_unconditional_fp8_scaled.safetensors\n\u2502   \u2514\u2500\u2500 \ud83d\udcc2 text_encoders/\n\u2502       \u251c\u2500\u2500 qwen3vl_8b_fp8_scaled.safetensors\n\u2502       \u2514\u2500\u2500 gemma4_e4b_it_fp8_scaled.safetensors\n```\n\n## Report Issue\n\nNote: Please update ComfyUI first ([guide](https://docs.comfy.org/installation/update_comfyui)) and prepare required models. Desktop/Cloud updates follow stable releases, so some nightly-supported models may not be available yet.\n\n- Cannot run / runtime errors: [ComfyUI/issues](https://github.com/comfyanonymous/ComfyUI/issues)\n- UI / frontend issues: [ComfyUI_frontend/issues](https://github.com/Comfy-Org/ComfyUI_frontend/issues)\n- Workflow issues: [workflow_templates/issues](https://github.com/Comfy-Org/workflow_templates/issues)\n"
    ],
    "color": "#222",
    "bgcolor": "#000"
@@ -2397,8 +2397,8 @@
       "id": 342,
       "type": "LanPaint_ImageEncode",
       "pos": [
-       6420,
-       2000
+       5776.7,
+       521.9
       ],
       "size": [
        270,
@@ -2447,8 +2447,8 @@
       "id": 343,
       "type": "LanPaint_ImageDecode",
       "pos": [
-       6730,
-       2000
+       6496.7,
+       521.9
       ],
       "size": [
        270,

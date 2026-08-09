@@ -65,8 +65,8 @@
     1,
     5,
     "Image First",
-    "LanPaint KSampler. For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star ⭐️!",
-    "🖼️ Image Inpainting",
+    "LanPaint KSampler. For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star \u2b50\ufe0f!",
+    "\ud83d\uddbc\ufe0f Image Inpainting",
     "lanpaint_star_button"
    ]
   },
@@ -314,7 +314,7 @@
     "ver": "0.3.23"
    },
    "widgets_values": [
-    "Example_12_Masked.png",
+    "Masked_Load_Me_in_Loader (7).png",
     "image"
    ]
   },
@@ -465,7 +465,7 @@
     "widget_ue_connectable": {}
    },
    "widgets_values": [
-    "Cyberpunk-style Einstein portrait: He wears a sleek black coat with glowing cyan circuit patterns, silver-rimmed cybernetic glasses (lenses display faint data streams), and his hair has subtle neon blue highlights. His expression is calm, with a faint smile. Behind him: a dark, rain-washed cybercity backdrop—towering skyscrapers with flickering holographic ads, wet pavement reflecting neon pink/magenta lights. In front of him: giant, glowing white 3D text of \"LanPaint\", with electric blue energy pulses swirling around the equation. Cinematic lighting, hyper-detailed textures, rain droplets visible in the air."
+    "Cyberpunk-style Einstein portrait: He wears a sleek black coat with glowing cyan circuit patterns, silver-rimmed cybernetic glasses (lenses display faint data streams), and his hair has subtle neon blue highlights. His expression is calm, with a faint smile. Behind him: a dark, rain-washed cybercity backdrop\u2014towering skyscrapers with flickering holographic ads, wet pavement reflecting neon pink/magenta lights. In front of him: giant, glowing white 3D text of \"LanPaint\", with electric blue energy pulses swirling around the equation. Cinematic lighting, hyper-detailed textures, rain droplets visible in the air."
    ],
    "color": "#232",
    "bgcolor": "#353"
@@ -474,8 +474,8 @@
    "id": 136,
    "type": "LanPaint_ImageEncode",
    "pos": [
-    4360,
-    2000
+    -93.8,
+    199.6
    ],
    "size": [
     270,
@@ -524,8 +524,8 @@
    "id": 137,
    "type": "LanPaint_ImageDecode",
    "pos": [
-    4670,
-    2000
+    626.2,
+    199.6
    ],
    "size": [
     270,

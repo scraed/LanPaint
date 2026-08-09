@@ -255,7 +255,7 @@
     5,
     "Image First",
     "LanPaint KSampler. Recommend steps 50, LanPaint NumSteps 1-20 depending on the difficulty of task. LanPaint_EndSigma = 3.0 for anime style, 0.6 for realistic style. For more information, visit https://github.com/scraed/LanPaint",
-    "🖼️ Image Inpainting"
+    "\ud83d\uddbc\ufe0f Image Inpainting"
    ]
   },
   {
@@ -335,8 +335,8 @@
    "id": 83,
    "type": "LanPaint_ImageEncode",
    "pos": [
-    627,
-    780
+    635.0,
+    317.0
    ],
    "size": [
     195.3150390625,
@@ -384,8 +384,8 @@
    "id": 84,
    "type": "LanPaint_ImageDecode",
    "pos": [
-    1755,
-    780
+    1355.0,
+    317.0
    ],
    "size": [
     270,

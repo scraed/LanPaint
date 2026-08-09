@@ -110,8 +110,8 @@
    "id": 78,
    "type": "LanPaint_ImageEncode",
    "pos": [
-    627.3978942185906,
-    984.308971592649
+    623.0,
+    288.7
    ],
    "size": [
     195.3150390625,
@@ -311,8 +311,8 @@
     1,
     5,
     "Image First",
-    "LanPaint KSampler. For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star ⭐️!",
-    "🖼️ Image Inpainting",
+    "LanPaint KSampler. For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star \u2b50\ufe0f!",
+    "\ud83d\uddbc\ufe0f Image Inpainting",
     "lanpaint_star_button"
    ]
   },
@@ -498,8 +498,8 @@
    "id": 79,
    "type": "LanPaint_ImageDecode",
    "pos": [
-    1755.3697160664874,
-    781.9181675937066
+    1343.0,
+    288.7
    ],
    "size": [
     270,

@@ -1,0 +1,998 @@
+{
+ "id": "9ae6082b-c7f4-433c-9971-7a8f65a3ea65",
+ "revision": 0,
+ "last_node_id": 78,
+ "last_link_id": 112,
+ "nodes": [
+  {
+   "id": 40,
+   "type": "VAELoader",
+   "pos": [
+    131.0846434356025,
+    576.6065838350738
+   ],
+   "size": [
+    269.77864583333337,
+    67.82552083333334
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "VAE",
+     "type": "VAE",
+     "links": [
+      104,
+      108
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "VAELoader",
+    "cnr_id": "comfy-core",
+    "ver": "0.3.73",
+    "models": [
+     {
+      "name": "ae.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors",
+      "directory": "vae"
+     }
+    ],
+    "enableTabs": false,
+    "tabWidth": 65,
+    "tabXOffset": 10,
+    "hasSecondTab": false,
+    "secondTabText": "Send Back",
+    "secondTabOffset": 80,
+    "secondTabWidth": 65
+   },
+   "widgets_values": [
+    "ae.safetensors"
+   ]
+  },
+  {
+   "id": 41,
+   "type": "EmptySD3LatentImage",
+   "pos": [
+    130.26337981400314,
+    705.2539588236402
+   ],
+   "size": [
+    259.77864583333337,
+    124.4921875
+   ],
+   "flags": {},
+   "order": 1,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "LATENT",
+     "type": "LATENT",
+     "slot_index": 0,
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "EmptySD3LatentImage",
+    "cnr_id": "comfy-core",
+    "ver": "0.3.64",
+    "enableTabs": false,
+    "tabWidth": 65,
+    "tabXOffset": 10,
+    "hasSecondTab": false,
+    "secondTabText": "Send Back",
+    "secondTabOffset": 80,
+    "secondTabWidth": 65
+   },
+   "widgets_values": [
+    1024,
+    1024,
+    1
+   ]
+  },
+  {
+   "id": 48,
+   "type": "LoraLoaderModelOnly",
+   "pos": [
+    459.99957646933433,
+    109.99990579628181
+   ],
+   "size": [
+    369.7916666666667,
+    96.15885416666667
+   ],
+   "flags": {},
+   "order": 8,
+   "mode": 4,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 54
+    }
+   ],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      60
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoraLoaderModelOnly",
+    "cnr_id": "comfy-core",
+    "ver": "0.3.75",
+    "models": [
+     {
+      "name": "pixel_art_style_z_image_turbo.safetensors",
+      "url": "https://huggingface.co/tarn59/pixel_art_style_lora_z_image_turbo/resolve/main/pixel_art_style_z_image_turbo.safetensors",
+      "directory": "loras"
+     }
+    ],
+    "enableTabs": false,
+    "tabWidth": 65,
+    "tabXOffset": 10,
+    "hasSecondTab": false,
+    "secondTabText": "Send Back",
+    "secondTabOffset": 80,
+    "secondTabWidth": 65
+   },
+   "widgets_values": [
+    "pixel_art_style_z_image_turbo.safetensors",
+    1
+   ]
+  },
+  {
+   "id": 35,
+   "type": "MarkdownNote",
+   "pos": [
+    -390.00009654097465,
+    239.99994184235885
+   ],
+   "size": [
+    489.77864583333337,
+    617.3828125
+   ],
+   "flags": {
+    "collapsed": false
+   },
+   "order": 2,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "title": "Model link",
+   "properties": {},
+   "widgets_values": [
+    "## Report workflow issue\n\nIf you found any issues when running this workflow, [report template issue here](https://github.com/Comfy-Org/workflow_templates/issues)\n\n\n## Model links\n\n**text_encoders**\n\n- [qwen_3_4b.safetensors](https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors)\n\n**loras**\n\n- [pixel_art_style_z_image_turbo.safetensors](https://huggingface.co/tarn59/pixel_art_style_lora_z_image_turbo/resolve/main/pixel_art_style_z_image_turbo.safetensors)\n\n**diffusion_models**\n\n- [z_image_turbo_bf16.safetensors](https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/diffusion_models/z_image_turbo_bf16.safetensors)\n\n**vae**\n\n- [ae.safetensors](https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors)\n\n\nModel Storage Location\n\n```\n\ud83d\udcc2 ComfyUI/\n\u251c\u2500\u2500 \ud83d\udcc2 models/\n\u2502   \u251c\u2500\u2500 \ud83d\udcc2 text_encoders/\n\u2502   \u2502      \u2514\u2500\u2500 qwen_3_4b.safetensors\n\u2502   \u251c\u2500\u2500 \ud83d\udcc2 loras/\n\u2502   \u2502      \u2514\u2500\u2500 pixel_art_style_z_image_turbo.safetensors\n\u2502   \u251c\u2500\u2500 \ud83d\udcc2 diffusion_models/\n\u2502   \u2502      \u2514\u2500\u2500 z_image_turbo_bf16.safetensors\n\u2502   \u2514\u2500\u2500 \ud83d\udcc2 vae/\n\u2502          \u2514\u2500\u2500 ae.safetensors\n```\n"
+   ],
+   "color": "#432",
+   "bgcolor": "#653"
+  },
+  {
+   "id": 61,
+   "type": "SaveImage",
+   "pos": [
+    2759.9685719809763,
+    991.0132526957497
+   ],
+   "size": [
+    1086.7317708333335,
+    1170.0130208333335
+   ],
+   "flags": {},
+   "order": 25,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 111
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "cnr_id": "comfy-core",
+    "ver": "0.3.23"
+   },
+   "widgets_values": [
+    "ComfyUI"
+   ]
+  },
+  {
+   "id": 72,
+   "type": "Note",
+   "pos": [
+    1072.3258089884341,
+    1251.3163769049763
+   ],
+   "size": [
+    210,
+    88
+   ],
+   "flags": {},
+   "order": 3,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {},
+   "widgets_values": [
+    "Reshape image to suit VAE "
+   ],
+   "color": "#432",
+   "bgcolor": "#653"
+  },
+  {
+   "id": 46,
+   "type": "UNETLoader",
+   "pos": [
+    130.8803835176007,
+    238.85087590367888
+   ],
+   "size": [
+    269.77864583333337,
+    96.15885416666667
+   ],
+   "flags": {},
+   "order": 4,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      54
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "UNETLoader",
+    "cnr_id": "comfy-core",
+    "ver": "0.3.73",
+    "models": [
+     {
+      "name": "z_image_turbo_bf16.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/diffusion_models/z_image_turbo_bf16.safetensors",
+      "directory": "diffusion_models"
+     }
+    ],
+    "enableTabs": false,
+    "tabWidth": 65,
+    "tabXOffset": 10,
+    "hasSecondTab": false,
+    "secondTabText": "Send Back",
+    "secondTabOffset": 80,
+    "secondTabWidth": 65
+   },
+   "widgets_values": [
+    "z_image_bf16.safetensors",
+    "default"
+   ]
+  },
+  {
+   "id": 57,
+   "type": "LoadImage",
+   "pos": [
+    6.077161599140862,
+    923.8378757225194
+   ],
+   "size": [
+    273.88020833333337,
+    546.8098958333334
+   ],
+   "flags": {},
+   "order": 5,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      103,
+      109
+     ]
+    },
+    {
+     "name": "MASK",
+     "type": "MASK",
+     "links": [
+      105,
+      110
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoadImage",
+    "cnr_id": "comfy-core",
+    "ver": "0.3.59",
+    "ue_properties": {
+     "widget_ue_connectable": {},
+     "version": "7.1",
+     "input_ue_unconnectable": {}
+    },
+    "image": "Masked_Load_Me_in_Loader (13).png [input]"
+   },
+   "widgets_values": [
+    "Masked_Load_Me_in_Loader (13).png",
+    "image"
+   ]
+  },
+  {
+   "id": 39,
+   "type": "CLIPLoader",
+   "pos": [
+    130.26337981400314,
+    405.2542176588747
+   ],
+   "size": [
+    269.77864583333337,
+    124.4921875
+   ],
+   "flags": {},
+   "order": 6,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "CLIP",
+     "type": "CLIP",
+     "links": [
+      44,
+      98
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "CLIPLoader",
+    "cnr_id": "comfy-core",
+    "ver": "0.3.73",
+    "models": [
+     {
+      "name": "qwen_3_4b.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors",
+      "directory": "text_encoders"
+     }
+    ],
+    "enableTabs": false,
+    "tabWidth": 65,
+    "tabXOffset": 10,
+    "hasSecondTab": false,
+    "secondTabText": "Send Back",
+    "secondTabOffset": 80,
+    "secondTabWidth": 65
+   },
+   "widgets_values": [
+    "qwen_3_4b.safetensors",
+    "lumina2",
+    "default"
+   ]
+  },
+  {
+   "id": 75,
+   "type": "CLIPTextEncode",
+   "pos": [
+    448.7872367553159,
+    690.9253024127064
+   ],
+   "size": [
+    390,
+    125
+   ],
+   "flags": {},
+   "order": 12,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "clip",
+     "type": "CLIP",
+     "link": 98
+    }
+   ],
+   "outputs": [
+    {
+     "name": "CONDITIONING",
+     "type": "CONDITIONING",
+     "links": [
+      102
+     ]
+    }
+   ],
+   "title": "CLIP Text Encode (Negative Prompt)",
+   "properties": {
+    "Node name for S&R": "CLIPTextEncode",
+    "cnr_id": "comfy-core",
+    "ver": "0.3.73",
+    "enableTabs": false,
+    "tabWidth": 65,
+    "tabXOffset": 10,
+    "hasSecondTab": false,
+    "secondTabText": "Send Back",
+    "secondTabOffset": 80,
+    "secondTabWidth": 65
+   },
+   "widgets_values": [
+    ""
+   ],
+   "color": "#323",
+   "bgcolor": "#535"
+  },
+  {
+   "id": 73,
+   "type": "PreviewImage",
+   "pos": [
+    1828.9318713728562,
+    114.5680075231259
+   ],
+   "size": [
+    187.5,
+    246
+   ],
+   "flags": {},
+   "order": 24,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 112
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewImage",
+    "cnr_id": "comfy-core",
+    "ver": "0.3.76"
+   },
+   "widgets_values": []
+  },
+  {
+   "id": 47,
+   "type": "ModelSamplingAuraFlow",
+   "pos": [
+    920.7037987240392,
+    248.48064332359456
+   ],
+   "size": [
+    309.89583333333337,
+    67.82552083333334
+   ],
+   "flags": {},
+   "order": 13,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 60
+    }
+   ],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "slot_index": 0,
+     "links": [
+      100
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "ModelSamplingAuraFlow",
+    "cnr_id": "comfy-core",
+    "ver": "0.3.64",
+    "enableTabs": false,
+    "tabWidth": 65,
+    "tabXOffset": 10,
+    "hasSecondTab": false,
+    "secondTabText": "Send Back",
+    "secondTabOffset": 80,
+    "secondTabWidth": 65
+   },
+   "widgets_values": [
+    3
+   ]
+  },
+  {
+   "id": 56,
+   "type": "LanPaint_KSampler",
+   "pos": [
+    1869.2934574860883,
+    468.13621723594605
+   ],
+   "size": [
+    372.64694675564056,
+    406.22742984745275
+   ],
+   "flags": {},
+   "order": 7,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": null
+    },
+    {
+     "name": "positive",
+     "type": "CONDITIONING",
+     "link": null
+    },
+    {
+     "name": "negative",
+     "type": "CONDITIONING",
+     "link": null
+    },
+    {
+     "name": "latent_image",
+     "type": "LATENT",
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "name": "LATENT",
+     "type": "LATENT",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LanPaint_KSampler",
+    "cnr_id": "LanPaint",
+    "ver": "6109df6591a4cf2bc9d3b113d03f7297fa9248e9"
+   },
+   "widgets_values": [
+    1011254864048366,
+    "randomize",
+    20,
+    4,
+    "euler",
+    "simple",
+    1,
+    5,
+    "Prompt First",
+    "LanPaint KSampler. For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star \u2b50\ufe0f!",
+    "\ud83d\uddbc\ufe0f Image Inpainting"
+   ]
+  },
+  {
+   "id": 45,
+   "type": "CLIPTextEncode",
+   "pos": [
+    450.2633140828448,
+    275.25446846701436
+   ],
+   "size": [
+    409.77864583333337,
+    374.77864583333337
+   ],
+   "flags": {},
+   "order": 11,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "clip",
+     "type": "CLIP",
+     "link": 44
+    }
+   ],
+   "outputs": [
+    {
+     "name": "CONDITIONING",
+     "type": "CONDITIONING",
+     "links": [
+      101
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "CLIPTextEncode",
+    "cnr_id": "comfy-core",
+    "ver": "0.3.73",
+    "enableTabs": false,
+    "tabWidth": 65,
+    "tabXOffset": 10,
+    "hasSecondTab": false,
+    "secondTabText": "Send Back",
+    "secondTabOffset": 80,
+    "secondTabWidth": 65
+   },
+   "widgets_values": [
+    "A fashion photography work full of surreal romanticism, using a low-angle upward shooting composition, with a clear light blue sky as the background, and the visual focus concentrated on the fantasy blue vegetation and the cute gaint panda walking through it.\n\nThe vegetation in the picture is processed into varying shades of blue, from light ice blue to deep cobalt blue. The textures of the leaves and branches are delicate and realistic. The warm brown tree trunks form a sharp contrast with the cool blue leaves, resembling a dreamy forest from another world. A cute gaint panda walks slowly on the sand. The warm tones of the dress echo with the surrounding cool blue vegetation. The noon sun casts clear shadows on the sand, enhancing the sense of space and reality in the picture.\n\nThe entire scene, with its clean and transparent colors and fantasy settings, not only exudes the vastness of the natural wilderness but also presents a quiet and poetic high-fashion sense due to the surreal vegetation."
+   ],
+   "color": "#232",
+   "bgcolor": "#353"
+  },
+  {
+   "id": 76,
+   "type": "LanPaint_KSamplerAdvanced",
+   "pos": [
+    1234.9129727307572,
+    465.17562131822933
+   ],
+   "size": [
+    400,
+    580
+   ],
+   "flags": {},
+   "order": 21,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 100
+    },
+    {
+     "name": "positive",
+     "type": "CONDITIONING",
+     "link": 101
+    },
+    {
+     "name": "negative",
+     "type": "CONDITIONING",
+     "link": 102
+    },
+    {
+     "name": "latent_image",
+     "type": "LATENT",
+     "link": 106
+    }
+   ],
+   "outputs": [
+    {
+     "name": "LATENT",
+     "type": "LATENT",
+     "links": [
+      107
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LanPaint_KSamplerAdvanced"
+   },
+   "widgets_values": [
+    "enable",
+    0,
+    "fixed",
+    20,
+    4,
+    "euler",
+    "simple",
+    0,
+    10000,
+    "disable",
+    5,
+    5.0,
+    0.2,
+    1,
+    15,
+    "Image First",
+    1,
+    "LanPaint KSampler Adv. For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star \u2b50\ufe0f!",
+    "\ud83d\uddbc\ufe0f Image Inpainting"
+   ]
+  },
+  {
+   "id": 77,
+   "type": "LanPaint_ImageEncode",
+   "pos": [
+    600.0,
+    500.0
+   ],
+   "size": [
+    300,
+    150
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "image",
+     "type": "IMAGE",
+     "link": 103
+    },
+    {
+     "name": "vae",
+     "type": "VAE",
+     "link": 104
+    },
+    {
+     "name": "mask",
+     "type": "MASK",
+     "link": 105
+    }
+   ],
+   "outputs": [
+    {
+     "name": "latent",
+     "type": "LATENT",
+     "links": [
+      106
+     ]
+    }
+   ],
+   "widgets_values": [],
+   "properties": {
+    "Node name for S&R": "LanPaint_ImageEncode",
+    "cnr_id": "LanPaint"
+   }
+  },
+  {
+   "id": 78,
+   "type": "LanPaint_ImageDecode",
+   "pos": [
+    1900.0,
+    500.0
+   ],
+   "size": [
+    300,
+    200
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "samples",
+     "type": "LATENT",
+     "link": 107
+    },
+    {
+     "name": "vae",
+     "type": "VAE",
+     "link": 108
+    },
+    {
+     "name": "image",
+     "type": "IMAGE",
+     "link": 109
+    },
+    {
+     "name": "mask",
+     "type": "MASK",
+     "link": 110
+    },
+    {
+     "name": "blend_overlap",
+     "type": "INT",
+     "widget": {
+      "name": "blend_overlap"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "image",
+     "type": "IMAGE",
+     "links": [
+      111,
+      112
+     ]
+    }
+   ],
+   "widgets_values": [
+    9
+   ],
+   "properties": {
+    "Node name for S&R": "LanPaint_ImageDecode",
+    "cnr_id": "LanPaint"
+   }
+  }
+ ],
+ "links": [
+  [
+   44,
+   39,
+   0,
+   45,
+   0,
+   "CLIP"
+  ],
+  [
+   54,
+   46,
+   0,
+   48,
+   0,
+   "MODEL"
+  ],
+  [
+   60,
+   48,
+   0,
+   47,
+   0,
+   "MODEL"
+  ],
+  [
+   98,
+   39,
+   0,
+   75,
+   0,
+   "CLIP"
+  ],
+  [
+   100,
+   47,
+   0,
+   76,
+   0,
+   "MODEL"
+  ],
+  [
+   101,
+   45,
+   0,
+   76,
+   1,
+   "CONDITIONING"
+  ],
+  [
+   102,
+   75,
+   0,
+   76,
+   2,
+   "CONDITIONING"
+  ],
+  [
+   103,
+   57,
+   0,
+   77,
+   0,
+   "IMAGE"
+  ],
+  [
+   104,
+   40,
+   0,
+   77,
+   1,
+   "VAE"
+  ],
+  [
+   105,
+   57,
+   1,
+   77,
+   2,
+   "MASK"
+  ],
+  [
+   106,
+   77,
+   0,
+   76,
+   3,
+   "LATENT"
+  ],
+  [
+   107,
+   76,
+   0,
+   78,
+   0,
+   "LATENT"
+  ],
+  [
+   108,
+   40,
+   0,
+   78,
+   1,
+   "VAE"
+  ],
+  [
+   109,
+   57,
+   0,
+   78,
+   2,
+   "IMAGE"
+  ],
+  [
+   110,
+   57,
+   1,
+   78,
+   3,
+   "MASK"
+  ],
+  [
+   111,
+   78,
+   0,
+   61,
+   0,
+   "IMAGE"
+  ],
+  [
+   112,
+   78,
+   0,
+   73,
+   0,
+   "IMAGE"
+  ]
+ ],
+ "groups": [
+  {
+   "id": 2,
+   "title": "Step2 - Image size",
+   "bounding": [
+    120,
+    640,
+    290,
+    200
+   ],
+   "color": "#3f789e",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 3,
+   "title": "Step3 - Prompt",
+   "bounding": [
+    430,
+    210,
+    450,
+    540
+   ],
+   "color": "#3f789e",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 4,
+   "title": "Step1 - Load models",
+   "bounding": [
+    120,
+    210,
+    290,
+    413.6
+   ],
+   "color": "#3f789e",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 5,
+   "title": "Ctrl-B to enable LoRA input",
+   "bounding": [
+    430,
+    40,
+    440,
+    160
+   ],
+   "color": "#3f789e",
+   "font_size": 24,
+   "flags": {}
+  }
+ ],
+ "config": {},
+ "extra": {
+  "ds": {
+   "scale": 0.2673486306413776,
+   "offset": [
+    853.4341376683553,
+    289.09247282952845
+   ]
+  },
+  "frontendVersion": "1.37.11",
+  "VHS_latentpreview": false,
+  "VHS_latentpreviewrate": 0,
+  "VHS_MetadataImage": true,
+  "VHS_KeepIntermediate": true,
+  "workflowRendererVersion": "LG"
+ },
+ "version": 0.4
+}

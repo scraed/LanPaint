@@ -1778,8 +1778,8 @@
       "id": 411,
       "type": "LanPaint_ImageEncode",
       "pos": [
-       7110,
-       2000
+       270,
+       -80
       ],
       "size": [
        270,
@@ -1828,8 +1828,8 @@
       "id": 412,
       "type": "LanPaint_ImageDecode",
       "pos": [
-       7420,
-       2000
+       990,
+       -80
       ],
       "size": [
        270,
