@@ -211,9 +211,9 @@ LanPaint's AV pipeline inpaints video **and audio** together with the MiniMax H3
 
 *Example: MiniMax H3, 864x480, 124 frames, LanPaint Sampler Custom (Advanced)*
 
-| Masked Input (paint in the editor) | Inpainted Result |
-|:----------------------------------:|:----------------:|
-| ![Masked Video](https://github.com/scraed/LanPaint/blob/master/examples/Example_29/Masked_LoadMe.mp4) | ![Inpainted Video](https://github.com/scraed/LanPaint/blob/master/examples/Example_29/InPainted_Drag_Me_to_ComfyUI.mp4) |
+| Masked Input (paint in the editor) | Mask (visible overlay) | Inpainted Result |
+|:----------------------------------:|:----------------------:|:----------------:|
+| ![Masked Video](https://github.com/scraed/LanPaint/blob/master/examples/Example_29/Masked_LoadMe.mp4) | ![Mask Overlay](https://github.com/scraed/LanPaint/blob/master/examples/Example_29/Masked_LoadMe_MaskOverlay.mp4) | ![Inpainted Video](https://github.com/scraed/LanPaint/blob/master/examples/Example_29/InPainted_Drag_Me_to_ComfyUI.mp4) |
 
 [View Workflow & Masks](https://github.com/scraed/LanPaint/tree/master/examples/Example_29) · [Workflow JSON](https://github.com/scraed/LanPaint/blob/master/example_workflows/MiniMax_H3_AV_EncodeDecode_Inpaint.json)
 
