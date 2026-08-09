@@ -42,6 +42,14 @@ note={}
 `v1.5.0` fixes an important hidden bug that reduced performance and could blur images (especially with `z-image-base`) and also boosts overall LanPaint performance across other models. 
 If your inpainting results have wierd (glowing / broken) mask boundary, check this [issue](https://github.com/scraed/LanPaint/issues/80).
 
+**🎬 NEW: LanPaint now supports MiniMax H3 video + audio inpainting!**
+
+| Masked Input (paint in the editor) | Mask (visible overlay) | Inpainted Result |
+|:----------------------------------:|:----------------------:|:----------------:|
+| ![Masked Video](https://github.com/scraed/LanPaint/blob/master/examples/Example_29/Masked_LoadMe.mp4) | ![Mask Overlay](https://github.com/scraed/LanPaint/blob/master/examples/Example_29/Masked_LoadMe_MaskOverlay.mp4) | ![Inpainted Video](https://github.com/scraed/LanPaint/blob/master/examples/Example_29/InPainted_Drag_Me_to_ComfyUI.mp4) |
+
+Check our latest [MiniMax H3 Example](#minimax-h3-video--audio-inpainting-av-pipeline): paint per-frame video masks and audio intervals in one editor, inpaint video + audio in a single pass, and export the masks into the video file itself.
+
 **🎬 NEW: LanPaint now supports inpainting and outpainting based on Z-Image!**
 
 
@@ -609,6 +617,9 @@ Submit a PR to add your tutorial/video here, or open an [Issue](https://github.c
 [Working togather with crop&stitch](https://github.com/scraed/LanPaint/issues/46)
 
 ## Updates
+- 2026/08/09
+    - Add MiniMax H3 video + audio inpainting support (Example_29): paint per-frame video masks and audio intervals in one editor session, encode both streams into a nested AV latent, sample once, and decode back with the source fps and bit depth preserved.
+    - The mask editor can export the masks into the video itself (mp4 metadata) - share a single video file and the masks travel with it.
 - 2026/06/27
     - Add Krea2 inpainting support with LanPaint KSampler (Example_28).
     - Add Ideogram4 inpainting support with LanPaint Custom Sampler Advanced (Example_27).
