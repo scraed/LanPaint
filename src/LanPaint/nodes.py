@@ -10,6 +10,11 @@ import torch
 from comfy.utils import repeat_to_batch_size
 from comfy.samplers import *
 from comfy.model_base import ModelType
+
+# MiniMaxH3 was ModelType.FLOW before ComfyUI 0.31.0 and ModelType.FLOW_AV
+# afterwards (the FLOW_AV enum + ModelSamplingAV audio carriage, commit
+# bdcb886a). Both are rectified-flow schedules; treat them alike.
+FLOW_MODEL_TYPES = (ModelType.FLOW, getattr(ModelType, "FLOW_AV", None))
 from .lanpaint import LanPaint
 from comfy.model_base import WAN22
 import comfyui_version
@@ -217,7 +222,7 @@ class KSamplerX0Inpaint:
         # x is rectified flow x_t = sigma * noise + (1.0 - sigma) * x_0
 
         IS_FLUX = self.inner_model.inner_model.model_type == ModelType.FLUX
-        IS_FLOW = self.inner_model.inner_model.model_type == ModelType.FLOW
+        IS_FLOW = self.inner_model.inner_model.model_type in FLOW_MODEL_TYPES
         #print("model class", type(self.inner_model.inner_model))
         #print("model type", self.inner_model.inner_model.model_type, "IS_FLUX", IS_FLUX, "IS_FLOW", IS_FLOW)
         #print("sigma", torch.mean(sigma).item(), torch.min(sigma).item(), torch.max(sigma).item())
@@ -304,7 +309,7 @@ class KSAMPLER(comfy.samplers.KSAMPLER):
             model_k.noise = noise
 
         IS_FLUX = model_wrap.inner_model.model_type == ModelType.FLUX
-        IS_FLOW = model_wrap.inner_model.model_type == ModelType.FLOW
+        IS_FLOW = model_wrap.inner_model.model_type in FLOW_MODEL_TYPES
         # unify the notations into variance exploding diffusion model
         if IS_FLUX:
             model_wrap.cfg_BIG = 1.0
