@@ -619,6 +619,9 @@ Submit a PR to add your tutorial/video here, or open an [Issue](https://github.c
 [Working togather with crop&stitch](https://github.com/scraed/LanPaint/issues/46)
 
 ## Updates
+- 2026/08/12
+    - `v2.1.0`: Significantly accelerated LanPaint using a new schedule mechanism.
+    - Fix bugs for MiniMax H3 on the latest ComfyUI.
 - 2026/08/09
     - Add MiniMax H3 video + audio inpainting support (Example_29): paint per-frame video masks and audio intervals in one editor session, encode both streams into a nested AV latent, sample once, and decode back with the source fps and bit depth preserved.
     - The mask editor can export the masks into the video itself (mp4 metadata) - share a single video file and the masks travel with it.
