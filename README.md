@@ -39,7 +39,7 @@ note={}
 
 [Join our Discord](https://discord.gg/yN5wYDE6W4) to share experiences, discuss features, and explore future development.
 
-`v1.5.0` fixes an important hidden bug that reduced performance and could blur images (especially with `z-image-base`) and also boosts overall LanPaint performance across other models. 
+`v2.1.0` significantly accelerates LanPaint with a new schedule mechanism and fixes MiniMax H3 support on the latest ComfyUI.
 If your inpainting results have wierd (glowing / broken) mask boundary, check this [issue](https://github.com/scraed/LanPaint/issues/80).
 
 **🎬 NEW: LanPaint now supports MiniMax H3 video + audio inpainting!**
@@ -107,6 +107,7 @@ Check our latest [Krea2 Example](#example-krea2-inpaintlanpaint-k-sampler-3-step
   - [Wan 2.2 Video Inpainting](#wan-22-video-inpainting)
   - [Wan 2.2 5B Video Inpainting](#wan-22-5b-video-inpainting)
   - [Wan 2.2 Video Outpainting](#wan-22-video-outpainting)
+  - [MiniMax H3 Video + Audio Inpainting](#minimax-h3-video--audio-inpainting-av-pipeline)
   - [Resource Consumption](#resource-consumption)
 - [Image Examples](#image-examples)
   - [Flux.2.Dev](#example-flux2dev-inpaintlanpaint-k-sampler-5-steps-of-thinking)
