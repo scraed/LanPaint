@@ -59,7 +59,11 @@ def _install_lightweight_runtime_stubs() -> None:
         class DummyKSAMPLER:  # noqa: N801 (match ComfyUI naming)
             pass
 
+        class KSampler:  # noqa: N801 (match ComfyUI naming)
+            SCHEDULERS = ["normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta", "linear_quadratic", "kl_optimal", "AYS"]
+
         comfy_samplers_mod.KSAMPLER = DummyKSAMPLER
+        comfy_samplers_mod.KSampler = KSampler
 
         comfy_model_base_mod = types.ModuleType("comfy.model_base")
 

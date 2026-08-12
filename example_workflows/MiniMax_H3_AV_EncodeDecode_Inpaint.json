@@ -102,7 +102,7 @@
       ],
       "size": [
         1070,
-        692.4444444444445
+        106
       ],
       "flags": {},
       "order": 7,
@@ -177,6 +177,38 @@
       "bgcolor": "#000"
     },
     {
+      "id": 171,
+      "type": "PrimitiveInt",
+      "pos": [
+        -1501.727513820877,
+        5081.371034429194
+      ],
+      "size": [
+        270,
+        82
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            325
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PrimitiveInt"
+      },
+      "widgets_values": [
+        0,
+        "fixed"
+      ]
+    },
+    {
       "id": 164,
       "type": "LanPaint_VideoMaskEditor",
       "pos": [
@@ -188,7 +220,7 @@
         510.1732256379084
       ],
       "flags": {},
-      "order": 5,
+      "order": 6,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -219,50 +251,18 @@
       },
       "widgets_values": [
         "Masked_LoadMe.mp4",
-        "{\"0\":\"lanpaint_kf_1786465858750_0.png\",\"41\":\"lanpaint_kf_1786465858750_41.png\",\"42\":\"lanpaint_kf_1786465858750_42.png\",\"56\":\"lanpaint_kf_1786465858750_56.png\",\"64\":\"lanpaint_kf_1786465858750_64.png\",\"65\":\"lanpaint_kf_1786465858750_65.png\",\"66\":\"lanpaint_kf_1786465858750_66.png\",\"70\":\"lanpaint_kf_1786465858750_70.png\",\"78\":\"lanpaint_kf_1786465858750_78.png\",\"82\":\"lanpaint_kf_1786465858750_82.png\",\"83\":\"lanpaint_kf_1786465858750_83.png\",\"86\":\"lanpaint_kf_1786465858750_86.png\",\"87\":\"lanpaint_kf_1786465858750_87.png\",\"88\":\"lanpaint_kf_1786465858750_88.png\",\"89\":\"lanpaint_kf_1786465858750_89.png\",\"92\":\"lanpaint_kf_1786465858750_92.png\",\"98\":\"lanpaint_kf_1786465858750_98.png\",\"106\":\"lanpaint_kf_1786465858750_106.png\",\"112\":\"lanpaint_kf_1786465858750_112.png\",\"115\":\"lanpaint_kf_1786465858750_115.png\",\"116\":\"lanpaint_kf_1786465858750_116.png\",\"117\":\"lanpaint_kf_1786465858750_117.png\",\"121\":\"lanpaint_kf_1786465858750_121.png\",\"122\":\"lanpaint_kf_1786465858750_122.png\",\"123\":\"lanpaint_kf_1786465858750_123.png\"}",
+        "{\"0\":\"lanpaint_kf_1786525157475_0.png\",\"41\":\"lanpaint_kf_1786525157475_41.png\",\"42\":\"lanpaint_kf_1786525157475_42.png\",\"56\":\"lanpaint_kf_1786525157475_56.png\",\"64\":\"lanpaint_kf_1786525157475_64.png\",\"65\":\"lanpaint_kf_1786525157475_65.png\",\"66\":\"lanpaint_kf_1786525157475_66.png\",\"70\":\"lanpaint_kf_1786525157475_70.png\",\"78\":\"lanpaint_kf_1786525157475_78.png\",\"82\":\"lanpaint_kf_1786525157475_82.png\",\"83\":\"lanpaint_kf_1786525157475_83.png\",\"86\":\"lanpaint_kf_1786525157475_86.png\",\"87\":\"lanpaint_kf_1786525157475_87.png\",\"88\":\"lanpaint_kf_1786525157475_88.png\",\"89\":\"lanpaint_kf_1786525157475_89.png\",\"92\":\"lanpaint_kf_1786525157475_92.png\",\"98\":\"lanpaint_kf_1786525157475_98.png\",\"106\":\"lanpaint_kf_1786525157475_106.png\",\"112\":\"lanpaint_kf_1786525157475_112.png\",\"115\":\"lanpaint_kf_1786525157475_115.png\",\"116\":\"lanpaint_kf_1786525157475_116.png\",\"117\":\"lanpaint_kf_1786525157475_117.png\",\"121\":\"lanpaint_kf_1786525157475_121.png\",\"122\":\"lanpaint_kf_1786525157475_122.png\",\"123\":\"lanpaint_kf_1786525157475_123.png\"}",
         "[{\"start\":3.7479933970546644,\"end\":5.161482918309433}]",
         null,
         null
       ]
     },
     {
-      "id": 171,
-      "type": "PrimitiveInt",
-      "pos": [
-        -1501.727513820877,
-        5081.371034429194
-      ],
-      "size": [
-        270,
-        82
-      ],
-      "flags": {},
-      "order": 6,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "INT",
-          "type": "INT",
-          "links": [
-            325
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "PrimitiveInt"
-      },
-      "widgets_values": [
-        0,
-        "fixed"
-      ]
-    },
-    {
       "id": 105,
       "type": "4c314f31-ecda-4b08-ae98-faaba1bf613f",
       "pos": [
-        -1180.0123438616117,
-        4841.429926449377
+        -1162.0520400610137,
+        4752.692756104936
       ],
       "size": [
         480,
@@ -1294,84 +1294,6 @@
             }
           },
           {
-            "id": 168,
-            "type": "LanPaint_AVDecode",
-            "pos": [
-              211.57706521551415,
-              4833.943607581178
-            ],
-            "size": [
-              270,
-              182
-            ],
-            "flags": {},
-            "order": 15,
-            "mode": 0,
-            "inputs": [
-              {
-                "localized_name": "samples",
-                "name": "samples",
-                "type": "LATENT",
-                "link": 317
-              },
-              {
-                "localized_name": "video",
-                "name": "video",
-                "type": "VIDEO",
-                "link": 318
-              },
-              {
-                "localized_name": "vae",
-                "name": "vae",
-                "type": "VAE",
-                "link": 319
-              },
-              {
-                "localized_name": "audio_vae",
-                "name": "audio_vae",
-                "type": "VAE",
-                "link": 320
-              },
-              {
-                "localized_name": "mask",
-                "name": "mask",
-                "type": "MASK",
-                "link": 321
-              },
-              {
-                "localized_name": "audio_mask",
-                "name": "audio_mask",
-                "type": "MASK",
-                "link": 322
-              }
-            ],
-            "outputs": [
-              {
-                "localized_name": "video",
-                "name": "video",
-                "type": "VIDEO",
-                "links": [
-                  323
-                ]
-              },
-              {
-                "localized_name": "audio",
-                "name": "audio",
-                "type": "AUDIO",
-                "links": [
-                  323
-                ]
-              }
-            ],
-            "properties": {
-              "Node name for S&R": "LanPaint_AVDecode"
-            },
-            "widgets_values": [
-              7,
-              0.02
-            ]
-          },
-          {
             "id": 166,
             "type": "LanPaint_AVEncode",
             "pos": [
@@ -1465,15 +1387,93 @@
             ]
           },
           {
+            "id": 168,
+            "type": "LanPaint_AVDecode",
+            "pos": [
+              104.27762179297802,
+              4795.77843899243
+            ],
+            "size": [
+              270,
+              182
+            ],
+            "flags": {},
+            "order": 15,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "samples",
+                "name": "samples",
+                "type": "LATENT",
+                "link": 317
+              },
+              {
+                "localized_name": "video",
+                "name": "video",
+                "type": "VIDEO",
+                "link": 318
+              },
+              {
+                "localized_name": "vae",
+                "name": "vae",
+                "type": "VAE",
+                "link": 319
+              },
+              {
+                "localized_name": "audio_vae",
+                "name": "audio_vae",
+                "type": "VAE",
+                "link": 320
+              },
+              {
+                "localized_name": "mask",
+                "name": "mask",
+                "type": "MASK",
+                "link": 321
+              },
+              {
+                "localized_name": "audio_mask",
+                "name": "audio_mask",
+                "type": "MASK",
+                "link": 322
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "video",
+                "name": "video",
+                "type": "VIDEO",
+                "links": [
+                  323
+                ]
+              },
+              {
+                "localized_name": "audio",
+                "name": "audio",
+                "type": "AUDIO",
+                "links": [
+                  323
+                ]
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "LanPaint_AVDecode"
+            },
+            "widgets_values": [
+              7,
+              0.02
+            ]
+          },
+          {
             "id": 159,
             "type": "LanPaint_SamplerCustomAdvanced",
             "pos": [
-              -364.1178713407107,
-              4691.433212981466
+              -359.61595564505456,
+              4695.2919921016
             ],
             "size": [
               351.4830078125,
-              378
+              402
             ],
             "flags": {},
             "order": 13,
@@ -1544,13 +1544,8 @@
               5,
               5,
               0.2,
-              1,
-              15,
               "Image First",
-              1,
               "LanPaint Custom Sampler Adv.",
-              0,
-              1,
               "lanpaint_star_button"
             ]
           }
@@ -1921,7 +1916,14 @@
     "VHS_latentpreview": false,
     "VHS_latentpreviewrate": 0,
     "VHS_MetadataImage": true,
-    "VHS_KeepIntermediate": true
+    "VHS_KeepIntermediate": true,
+    "ds": {
+      "scale": 1.0870517678867337,
+      "offset": [
+        1344.5569069068965,
+        -4709.646788655367
+      ]
+    }
   },
   "version": 0.4
 }

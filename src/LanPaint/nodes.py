@@ -72,9 +72,9 @@ def reshape_mask(input_mask, output_shape,video_inpainting=False):
         elif input_mask.ndim == 2:
             input_mask = input_mask.unsqueeze(0).unsqueeze(0).unsqueeze(0)
     elif input_mask.ndim == 1 and len(output_shape) == 4:
-        # audio mask [F] at video frame rate -> the audio latent's token grid:
-        # nearest-exact along time, then expanded to the (ch, tokens) layout
-        f, t = input_mask.shape[0], output_shape[-1]
+        # audio mask [F] at video frame rate -> the audio latent's time axis:
+        # nearest-exact along time, then expanded to the (ch, T) layout
+        t = output_shape[-1]
         input_mask = torch.nn.functional.interpolate(
             input_mask.float().unsqueeze(0).unsqueeze(0),
             size=(t,),
@@ -84,7 +84,7 @@ def reshape_mask(input_mask, output_shape,video_inpainting=False):
     elif input_mask.ndim == 4 and len(output_shape) == 4 and input_mask.shape[1] == 1 and input_mask.shape[3] == 1:
         # audio mask [F, 1] that SetLatentNoiseMask reshaped to [1, 1, F, 1]:
         # nearest F -> T, then expanded to (1, 1, ch, T)
-        f, t = input_mask.shape[2], output_shape[-1]
+        t = output_shape[-1]
         input_mask = torch.nn.functional.interpolate(input_mask, size=(t, 1), mode="nearest-exact")
         input_mask = input_mask.permute(0, 1, 3, 2).expand(1, 1, output_shape[-2], t)
     elif input_mask.ndim == 2:
@@ -99,35 +99,22 @@ def reshape_mask(input_mask, output_shape,video_inpainting=False):
 
     if video_inpainting:  # Video case: (batch, channels, frames, height, width)
 
-        # Temporal union: a latent token covers ~4 video frames (the VAE's
-        # nominal temporal stride), and a token-level mask is all-or-nothing
-        # (binarized at 0.5 downstream). Averaging the frames into a token
-        # (trilinear) can erase sparse temporal strokes entirely; instead the
-        # token takes the UNION (max) of its ~4 frames - it regenerates iff
-        # any of them is painted. The last window is partial; short sequences
-        # (1-4 frames) collapse to a single window holding the max, which is
-        # exactly the union.
-        f = input_mask.shape[2]
-        n_win = (f + 3) // 4
-        pooled = torch.zeros(
-            (input_mask.shape[0], input_mask.shape[1], n_win, input_mask.shape[3], input_mask.shape[4]),
-            dtype=input_mask.dtype, device=input_mask.device)
-        for i in range(n_win):
-            pooled[:, :, i] = input_mask[:, :, i * 4 : (i + 1) * 4].amax(dim=2)
-        input_mask = pooled
-
         target_frames = output_shape[2]
         target_height, target_width = output_shape[-2:]
 
-        # 3D nearest-exact interpolation: (batch, channels, frames, height, width) -> (batch, channels, target_frames, target_height, target_width)
-        temp_mask = torch.nn.functional.interpolate(
+        # EXPERIMENTAL: nearest-exact first, then the slice-level union.
+        # The resample snaps each latent slice to a single picked frame
+        # (src = floor((t+0.5)*F/T), ~1 in 4 frames), then the sliding max
+        # over ~5 slices spreads the value to neighboring slices. NOTE: this
+        # drops strokes painted on frames that no slice picks.
+        input_mask = torch.nn.functional.interpolate(
             input_mask,
             size=(target_frames, target_height, target_width),
             mode=scale_mode,
         )
 
-        # temp_mask is already 5D: (batch, channels, target_frames, target_height, target_width)
-        mask = temp_mask
+        mask = torch.nn.functional.max_pool3d(
+            input_mask, kernel_size=(5, 1, 1), stride=(1, 1, 1), padding=(2, 0, 0))
         # Handle channel dimension expansion if needed
         if mask.shape[1] < output_shape[1]:
             mask = mask.repeat(1, output_shape[1], 1, 1, 1)[:, :output_shape[1]]
@@ -144,6 +131,31 @@ def reshape_mask(input_mask, output_shape,video_inpainting=False):
 
 
     return mask
+def min_step_frac_effective_steps(n_steps, frac, min_frac):
+    """Inner-step count under the MinStepFrac tail ramp.
+
+    While the remaining-noise fraction stays above min_frac (or with
+    min_frac == 0, the feature disabled) the count is unchanged and the step
+    size keeps scaling with the noise inside LanPaint. Below the fraction the
+    step size is pinned and the count ramps down linearly,
+    NSteps * frac / min_frac, to zero."""
+    if min_frac <= 0 or frac >= min_frac or n_steps <= 0:
+        return n_steps
+    return max(0, round(n_steps * frac / min_frac))
+
+def _sanitize_param(value, default, allowed=None):
+    """Coerce a widget value to a sane default.
+
+    Old workflows and hand-edited JSON can supply values that no longer fit
+    the widget (wrong type, or a value removed from a combo list). Fail back
+    to the default instead of crashing the node.
+    """
+    if allowed is not None:
+        return value if value in allowed else default
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return default
+    return value
+
 def prepare_mask(noise_mask, shape, device,video_inpainting=False):
     return reshape_mask(noise_mask, shape,video_inpainting).to(device)
 def sampling_function_LanPaint(model, x, timestep, uncond, cond, cond_scale, cond_scale_BIG, model_options={}, seed=None):
@@ -274,10 +286,18 @@ class KSamplerX0Inpaint:
             current_step = torch.argmin( torch.abs( self.sigmas - torch.mean(sigma) ) )
             total_steps = len(self.sigmas)-1
 
+            # Only one knob changes at a time: while the remaining noise
+            # fraction (1 - abt) stays above LanPaint_MinStepFrac the inner
+            # step size scales with it (LanPaint pins it below the fraction)
+            # and the count is constant. Below the fraction the count ramps
+            # down linearly, NSteps * (1 - abt) / MinStepFrac, down to 0.
+            n_eff = self.PaintMethod.n_steps
             if total_steps - current_step <= self.LanPaint_early_stop:
-                out = self.PaintMethod(x, self.latent_image, self.noise, sigma, latent_mask, current_times, model_options, seed, n_steps=0, current_times_audio=current_times_audio, audio_indicator=self.audio_indicator, audio_correction=audio_correction)
+                n_eff = 0
             else:
-                out = self.PaintMethod(x, self.latent_image, self.noise, sigma, latent_mask, current_times, model_options, seed, current_times_audio=current_times_audio, audio_indicator=self.audio_indicator, audio_correction=audio_correction)
+                n_eff = min_step_frac_effective_steps(
+                    n_eff, float((1.0 - abt).mean()), getattr(self, "LanPaint_min_step_frac", 1.0))
+            out = self.PaintMethod(x, self.latent_image, self.noise, sigma, latent_mask, current_times, model_options, seed, n_steps=n_eff, current_times_audio=current_times_audio, audio_indicator=self.audio_indicator, audio_correction=audio_correction)
         else:
             out, _ = self.inner_model(x, sigma, model_options=model_options, seed=seed)
 
@@ -338,8 +358,10 @@ class KSAMPLER(comfy.samplers.KSAMPLER):
                                        IS_FLOW = IS_FLOW,
                                        EarlyStopThreshold = getattr(model_wrap.model_patcher, "LanPaint_InnerThreshold", 0.0),
                                        EarlyStopPatience = getattr(model_wrap.model_patcher, "LanPaint_InnerPatience", 1),
-                                       EarlyStopHook = extra_args.get("model_options", {}).get("lanpaint_semantic_hook", None))
+                                       EarlyStopHook = extra_args.get("model_options", {}).get("lanpaint_semantic_hook", None),
+                                       MinStepFrac = getattr(model_wrap.model_patcher, "LanPaint_MinStepFrac", 1.0))
         model_k.LanPaint_early_stop = model_wrap.model_patcher.LanPaint_EarlyStop
+        model_k.LanPaint_min_step_frac = getattr(model_wrap.model_patcher, "LanPaint_MinStepFrac", 1.0)
         #if not inpainting, after noise_scaling, noise = noise * sigma, which is the noise added to the clean latent image in the variance exploding diffusion model notation.
         #if inpainting, after noise_scaling, noise = latent_image + noise * sigma, which is x_t in the variance exploding diffusion model notation for the known region.
         k_callback = None
@@ -446,7 +468,13 @@ class LanPaint_KSampler():
                 "LanPaint_PromptMode": (["Image First", "Prompt First"], {"tooltip": "Image First: emphasis image quality, Prompt First: emphasis prompt following"}),
                 "LanPaint_Info": ("STRING", {"default": "LanPaint KSampler.", "tooltip": "For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star ⭐️!"}),
                 "Inpainting_mode": (["🖼️ Image Inpainting", "🎬 Video Inpainting"], {"default": "🖼️ Image Inpainting", "tooltip": "Choose Image mode for photos or Video mode for video frames with temporal consistency"}),
-                  }
+                  },
+            "hidden": {
+                    # Retired hyperparameters. Old prompts (saved before these
+                    # were removed) still pass them; accept and ignore the
+                    # values -- the fixed defaults below are always used.
+                    "LanPaint_MinStepFrac": "DEFAULT",
+                  },
         }
 
     RETURN_TYPES = ("LATENT",)
@@ -456,12 +484,16 @@ class LanPaint_KSampler():
     CATEGORY = "sampling"
     DESCRIPTION = "Uses the provided model, positive and negative conditioning to denoise the latent image."
 
-    def sample(self, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0, LanPaint_NumSteps=5, LanPaint_PromptMode="Image First",  LanPaint_Info="",Inpainting_mode="🖼️ Image Inpainting"):
+    def sample(self, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0, LanPaint_NumSteps=5, LanPaint_PromptMode="Image First",  LanPaint_Info="",Inpainting_mode="🖼️ Image Inpainting", **kwargs):
+        LanPaint_NumSteps = _sanitize_param(LanPaint_NumSteps, 5)
+        LanPaint_PromptMode = _sanitize_param(LanPaint_PromptMode, "Image First", allowed=("Image First", "Prompt First"))
+        Inpainting_mode = _sanitize_param(Inpainting_mode, "🖼️ Image Inpainting", allowed=("🖼️ Image Inpainting", "🎬 Video Inpainting"))
 
         model.LanPaint_StepSize = 0.2
         model.LanPaint_Lambda = 5.0
         model.LanPaint_Beta = 1.
         model.LanPaint_NumSteps = LanPaint_NumSteps
+        model.LanPaint_MinStepFrac = 1.0
         model.LanPaint_Friction = 15.
         model.LanPaint_EarlyStop = 1
         model.LanPaint_InnerThreshold = 0.0
@@ -499,15 +531,21 @@ class LanPaint_KSamplerAdvanced:
                 "LanPaint_NumSteps": ("INT", {"default": 5, "min": 0, "max": 100, "tooltip": "The number of steps for the Langevin dynamics, representing the turns of thinking per step."}),
                 "LanPaint_Lambda": ("FLOAT", {"default": 5.0, "min": 0.1, "max": 50.0, "step": 0.1, "round": 0.1, "tooltip": "The bidirectional guidance scale. Higher values align with known regions more closely, but may result in instability."}),
                 "LanPaint_StepSize": ("FLOAT", {"default": 0.2, "min": 0.0001, "max": 1., "step": 0.01, "round": 0.001, "tooltip": "The step size for the Langevin dynamics. Higher values result in faster convergence but may be unstable."}),
-                "LanPaint_Beta": ("FLOAT", {"default": 1., "min": 0.0001, "max": 5, "step": 0.1, "round": 0.1, "tooltip": "The step size ratio between masked / unmasked regions. Lower value can compensate high values of LanPaint_Lambda."}),
-                "LanPaint_Friction": ("FLOAT", {"default": 15, "min": 0., "max": 50.0, "step": 0.1, "round": 0.1, "tooltip": "The friction parameter for fast langevin, lower values result in faster convergence but may be unstable."}),
                 "LanPaint_PromptMode": (["Image First", "Prompt First"], {"tooltip": "Image First: emphasis image quality, Prompt First: emphasis prompt following"}),
-                "LanPaint_EarlyStop": ("INT", {"default": 1, "min": 0, "max": 10000, "tooltip": "The number of steps to stop the LanPaint early, useful for preventing the image from irregular patterns."}),
                 "LanPaint_Info": ("STRING", {"default": "LanPaint KSampler Adv.", "tooltip": "For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star ⭐️!"}),
                 "Inpainting_mode": (["🖼️ Image Inpainting", "🎬 Video Inpainting"], {"default": "🖼️ Image Inpainting", "tooltip": "Choose Image mode for photos or Video mode for video frames with temporal consistency"}),
-                "LanPaint_InnerThreshold": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.0001, "round": 0.0001, "tooltip": "Early stop threshold for Langevin iterations based on semantic distance. 0.0 to disable. (Contributed by godnight10061)"}),
-                "LanPaint_InnerPatience": ("INT", {"default": 1, "min": 1, "max": 100, "tooltip": "Number of consecutive steps below threshold required to stop. (Contributed by godnight10061)"}),
                      },
+            "hidden": {
+                    # Retired hyperparameters. Old prompts (saved before these
+                    # were removed) still pass them; accept and ignore the
+                    # values -- the fixed defaults below are always used.
+                    "LanPaint_Beta": "DEFAULT",
+                    "LanPaint_Friction": "DEFAULT",
+                    "LanPaint_EarlyStop": "DEFAULT",
+                    "LanPaint_InnerThreshold": "DEFAULT",
+                    "LanPaint_InnerPatience": "DEFAULT",
+                    "LanPaint_MinStepFrac": "DEFAULT",
+                  },
                 }
 
     RETURN_TYPES = ("LATENT",)
@@ -515,21 +553,27 @@ class LanPaint_KSamplerAdvanced:
 
     CATEGORY = "sampling"
 
-    def sample(self, model, add_noise, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, start_at_step, end_at_step, return_with_leftover_noise, LanPaint_NumSteps=5, LanPaint_Lambda=5.0, LanPaint_StepSize=0.2, LanPaint_Beta=1.0, LanPaint_Friction=15.0, LanPaint_PromptMode="Image First", LanPaint_EarlyStop=1, LanPaint_Info="", Inpainting_mode="🖼️ Image Inpainting", LanPaint_InnerThreshold=0.0, LanPaint_InnerPatience=1):
+    def sample(self, model, add_noise, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, start_at_step, end_at_step, return_with_leftover_noise, LanPaint_NumSteps=5, LanPaint_Lambda=5.0, LanPaint_StepSize=0.2, LanPaint_PromptMode="Image First", LanPaint_Info="", Inpainting_mode="🖼️ Image Inpainting", **kwargs):
         force_full_denoise = True
         if return_with_leftover_noise == "enable":
             force_full_denoise = False
         disable_noise = False
         if add_noise == "disable":
             disable_noise = True
+        LanPaint_NumSteps = _sanitize_param(LanPaint_NumSteps, 5)
+        LanPaint_Lambda = _sanitize_param(LanPaint_Lambda, 5.0)
+        LanPaint_StepSize = _sanitize_param(LanPaint_StepSize, 0.2)
+        LanPaint_PromptMode = _sanitize_param(LanPaint_PromptMode, "Image First", allowed=("Image First", "Prompt First"))
+        Inpainting_mode = _sanitize_param(Inpainting_mode, "🖼️ Image Inpainting", allowed=("🖼️ Image Inpainting", "🎬 Video Inpainting"))
         model.LanPaint_StepSize = LanPaint_StepSize
         model.LanPaint_Lambda = LanPaint_Lambda
-        model.LanPaint_Beta = LanPaint_Beta
+        model.LanPaint_Beta = 1.0
         model.LanPaint_NumSteps = LanPaint_NumSteps
-        model.LanPaint_Friction = LanPaint_Friction
-        model.LanPaint_EarlyStop = LanPaint_EarlyStop
-        model.LanPaint_InnerThreshold = LanPaint_InnerThreshold
-        model.LanPaint_InnerPatience = LanPaint_InnerPatience
+        model.LanPaint_MinStepFrac = 1.0
+        model.LanPaint_Friction = 15.0
+        model.LanPaint_EarlyStop = 1
+        model.LanPaint_InnerThreshold = 0.0
+        model.LanPaint_InnerPatience = 1
         if LanPaint_PromptMode == "Image First":
             model.LanPaint_cfg_BIG = cfg
         else:
@@ -637,10 +681,13 @@ class LanPaint_SamplerCustom:
     CATEGORY = "sampling/custom_sampling"
 
     def sample(self, model, sampler, sigmas, add_noise, noise_seed, cfg, positive, negative, latent_image, LanPaint_NumSteps, LanPaint_PromptMode, LanPaint_Info=""):
+        LanPaint_NumSteps = _sanitize_param(LanPaint_NumSteps, 5)
+        LanPaint_PromptMode = _sanitize_param(LanPaint_PromptMode, "Image First", allowed=("Image First", "Prompt First"))
         model.LanPaint_StepSize = 0.2
         model.LanPaint_Lambda = 5.0
         model.LanPaint_Beta = 1.
         model.LanPaint_NumSteps = LanPaint_NumSteps
+        model.LanPaint_MinStepFrac = 1.0
         model.LanPaint_Friction = 15.
         model.LanPaint_EarlyStop = 1
         model.LanPaint_InnerThreshold = 0.0
@@ -691,14 +738,20 @@ class LanPaint_SamplerCustomAdvanced:
                      "LanPaint_NumSteps": ("INT", {"default": 5, "min": 0, "max": 100, "tooltip": "Number of steps for Langevin dynamics, representing turns of thinking per step."}),
                      "LanPaint_Lambda": ("FLOAT", {"default": 5.0, "min": 0.1, "max": 50.0, "step": 0.1, "tooltip": "Bidirectional guidance scale. Higher values align with known regions but may cause instability."}),
                      "LanPaint_StepSize": ("FLOAT", {"default": 0.2, "min": 0.0001, "max": 1.0, "step": 0.01, "tooltip": "Step size for Langevin dynamics. Higher values speed convergence but may be unstable."}),
-                     "LanPaint_Beta": ("FLOAT", {"default": 1.0, "min": 0.0001, "max": 5.0, "step": 0.1, "tooltip": "Step size ratio between masked/unmasked regions. Lower values balance high Lambda."}),
-                     "LanPaint_Friction": ("FLOAT", {"default": 15.0, "min": 0.0, "max": 50.0, "step": 0.1, "tooltip": "Friction parameter for fast Langevin. Lower values speed convergence but may be unstable."}),
                      "LanPaint_PromptMode": (["Image First", "Prompt First"], {"tooltip": "Image First: prioritizes image quality; Prompt First: prioritizes prompt adherence."}),
-                     "LanPaint_EarlyStop": ("INT", {"default": 1, "min": 0, "max": 10000, "tooltip": "Steps to stop LanPaint early, preventing irregular patterns."}),
                      "LanPaint_Info": ("STRING", {"default": "LanPaint Custom Sampler Adv.", "tooltip": "For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star ⭐️!"}),
-                     "LanPaint_InnerThreshold": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.0001, "round": 0.0001, "tooltip": "Early stop threshold for Langevin iterations based on semantic distance. 0.0 to disable. (Contributed by godnight10061)"}),
-                     "LanPaint_InnerPatience": ("INT", {"default": 1, "min": 1, "max": 100, "tooltip": "Number of consecutive steps below threshold required to stop. (Contributed by godnight10061)"}),
-                    }
+                    },
+            "hidden": {
+                    # Retired hyperparameters. Old prompts (saved before these
+                    # were removed) still pass them; accept and ignore the
+                    # values -- the fixed defaults below are always used.
+                    "LanPaint_Beta": "DEFAULT",
+                    "LanPaint_Friction": "DEFAULT",
+                    "LanPaint_EarlyStop": "DEFAULT",
+                    "LanPaint_InnerThreshold": "DEFAULT",
+                    "LanPaint_InnerPatience": "DEFAULT",
+                    "LanPaint_MinStepFrac": "DEFAULT",
+                  },
                }
 
     RETURN_TYPES = ("LATENT","LATENT")
@@ -708,16 +761,21 @@ class LanPaint_SamplerCustomAdvanced:
 
     CATEGORY = "sampling/custom_sampling"
 
-    def sample(self, noise, guider, sampler, sigmas, latent_image, LanPaint_NumSteps, LanPaint_Lambda, LanPaint_StepSize, LanPaint_Beta, LanPaint_Friction, LanPaint_PromptMode, LanPaint_EarlyStop, LanPaint_Info="", LanPaint_InnerThreshold=0.0, LanPaint_InnerPatience=1):
+    def sample(self, noise, guider, sampler, sigmas, latent_image, LanPaint_NumSteps, LanPaint_Lambda, LanPaint_StepSize, LanPaint_PromptMode, LanPaint_Info="", **kwargs):
+        LanPaint_NumSteps = _sanitize_param(LanPaint_NumSteps, 5)
+        LanPaint_Lambda = _sanitize_param(LanPaint_Lambda, 5.0)
+        LanPaint_StepSize = _sanitize_param(LanPaint_StepSize, 0.2)
+        LanPaint_PromptMode = _sanitize_param(LanPaint_PromptMode, "Image First", allowed=("Image First", "Prompt First"))
         model = guider.model_patcher
         model.LanPaint_StepSize = LanPaint_StepSize
         model.LanPaint_Lambda = LanPaint_Lambda
-        model.LanPaint_Beta = LanPaint_Beta
+        model.LanPaint_Beta = 1.0
         model.LanPaint_NumSteps = LanPaint_NumSteps
-        model.LanPaint_Friction = LanPaint_Friction
-        model.LanPaint_EarlyStop = LanPaint_EarlyStop
-        model.LanPaint_InnerThreshold = LanPaint_InnerThreshold
-        model.LanPaint_InnerPatience = LanPaint_InnerPatience
+        model.LanPaint_Friction = 15.0
+        model.LanPaint_EarlyStop = 1
+        model.LanPaint_InnerThreshold = 0.0
+        model.LanPaint_InnerPatience = 1
+        model.LanPaint_MinStepFrac = 1.0
         if LanPaint_PromptMode == "Image First":
             model.LanPaint_cfg_BIG = guider.cfg
         else:
@@ -845,7 +903,7 @@ class LanPaint_VideoMaskEditor:
     recorded in the hidden ``audio_mask`` widget as [{"start": s, "end": e}].
     The same editor displays the audio waveform and paints intervals; the
     workflow attaches the mask to the audio latent (SetLatentNoiseMask) and the
-    sampler resamples it to the audio latent tokens.
+    sampler resamples it to the audio latent's time axis.
 
     Video mask convention: 1 = regenerate, 0 = keep. Both masks span the
     video's full frame count (read from the file container, no pixel decoding).
@@ -978,7 +1036,7 @@ class LanPaint_AVEncode:
         z_audio = LanPaint_MiniMaxAudioEncode().encode(audio, audio_vae)[0]["samples"]
 
         # audio mask: accept [F] or [F, 1]; the per-stream prep resamples it
-        # to the audio latent tokens
+        # to the audio latent's time axis
         if audio_mask.ndim == 2 and audio_mask.shape[1] == 1:
             audio_mask = audio_mask[:, 0]
 
@@ -1221,7 +1279,7 @@ class LanPaint_ImageEncode:
                         m.unsqueeze(0).unsqueeze(0), size=target, mode="nearest-exact"
                     )[0, 0]
                 latent["noise_mask"] = m.unsqueeze(0).unsqueeze(0)
-            else:  # 5D video-style VAE: snap to (T, H, W), one mask frame per token
+            else:  # 5D video-style VAE: snap to (T, H, W), one mask slice per latent frame
                 t, h, w = z.shape[-3:]
                 if tuple(m.shape) != (h, w):
                     m = torch.nn.functional.interpolate(

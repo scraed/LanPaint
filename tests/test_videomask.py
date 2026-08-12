@@ -491,38 +491,41 @@ def _reshape(nodes, mask, output_shape):
     return nodes.reshape_mask(mask, output_shape, video_inpainting=True)
 
 
-def test_union_window4_max_takes_the_union(monkeypatch, tmp_path) -> None:
+def test_union_picked_frames_take_the_union(monkeypatch, tmp_path) -> None:
     nodes = _import_nodes(monkeypatch, tmp_path)
-    # frame 3 (window 0: frames 0-3) and frame 5 (window 1: frames 4-7)
+    # EXPERIMENTAL order (interp -> pool): 8 frames -> 2 slices, nearest-exact
+    # picks frames {2, 6}; strokes must be on picked frames to survive
     mask = torch.zeros(8, 6, 8)
-    mask[3, 2, 3] = 1.0
-    mask[5, 4, 5] = 1.0
+    mask[2, 2, 3] = 1.0
+    mask[6, 4, 5] = 1.0
     out = _reshape(nodes, mask, (1, 24, 2, 6, 8))
     assert out.shape == (1, 24, 2, 6, 8)
-    assert out[0, 0, 0, 2, 3] == 1.0  # window 0: union of frames 0-3
-    assert out[0, 0, 1, 4, 5] == 1.0  # window 1: union of frames 4-7
+    assert out[0, 0, 0, 2, 3] == 1.0  # picked frame 2 -> slice 0
+    assert out[0, 0, 1, 4, 5] == 1.0  # picked frame 6 -> slice 1
     assert out[0, 0, 0].max() == 1.0 and out[0, 0, 1].max() == 1.0
 
 
-def test_union_sparse_stroke_survives(monkeypatch, tmp_path) -> None:
+def test_union_sparse_stroke_spreads_over_slices(monkeypatch, tmp_path) -> None:
     nodes = _import_nodes(monkeypatch, tmp_path)
-    # a stroke on a single frame must NOT average away: its token regenerates
+    # EXPERIMENTAL order: a stroke on a picked frame (16 -> 4 slices picks
+    # {2, 6, 10, 14}) spreads to neighboring slices via the slice-level pool
     mask = torch.zeros(16, 4, 4)
-    mask[7, 1, 1] = 1.0
+    mask[6, 1, 1] = 1.0
     out = _reshape(nodes, mask, (1, 24, 4, 4, 4))
     assert out.shape == (1, 24, 4, 4, 4)
-    assert out.max() == 1.0  # the painted frame's token is fully regenerated
-    assert out[0, 0, 0].max() == 0.0  # windows without paint stay 0
+    assert out.max() == 1.0  # the picked frame's stroke regenerates
+    # with T=4 and kernel 5, every slice's window covers the whole sequence
+    assert out[0, 0, 0].max() == 1.0 and out[0, 0, 3].max() == 1.0
 
 
 def test_union_resamples_to_latent_shape_nearest(monkeypatch, tmp_path) -> None:
     nodes = _import_nodes(monkeypatch, tmp_path)
-    # 8 frames -> 2 windows -> nearest-exact to the latent (T=2, /2 spatial)
+    # EXPERIMENTAL order: 8 frames -> 2 slices; stroke on picked frame 6
     mask = torch.zeros(8, 8, 6)
-    mask[5, 4:6, 2:4] = 1.0  # window 1 (frames 4-7), a small stroke
+    mask[6, 4:6, 2:4] = 1.0  # picked frame, a small stroke
     out = _reshape(nodes, mask, (1, 24, 2, 4, 3))
     assert out.shape == (1, 24, 2, 4, 3)
-    assert out[0, 0, 0].max() == 0.0
+    assert out[0, 0, 0].max() == 1.0  # slice-level pool spreads to slice 0
     assert out[0, 0, 1].max() == 1.0
     # nearest-exact spatial: the painted pixel survives at its mapped location
     assert out[0, 0, 1, 2, 1] == 1.0
@@ -530,13 +533,15 @@ def test_union_resamples_to_latent_shape_nearest(monkeypatch, tmp_path) -> None:
 
 def test_union_124_frames_to_37_tokens(monkeypatch, tmp_path) -> None:
     nodes = _import_nodes(monkeypatch, tmp_path)
+    # EXPERIMENTAL order: nearest-exact picks 124 -> 37 slice anchors; frame
+    # 62 is one of them (anchor for slice 18), frame 60 is not
     mask = torch.zeros(124, 864, 480)
-    mask[60, 100:140, 100:140] = 1.0  # a brush stroke on a single frame
+    mask[62, 100:140, 100:140] = 1.0  # a brush stroke on a picked frame
     out = _reshape(nodes, mask, (1, 24, 37, 30, 54))
     assert out.shape == (1, 24, 37, 30, 54)
-    assert out.max() == 1.0  # the paint is covered by some token
-    # most tokens are empty (no window-4 smear)
-    assert (out == 0.0).float().mean() > 0.95
+    assert out.max() == 1.0  # the paint is covered by some slice
+    # only the slice-level union spreads: ~5 of 37 slices are marked
+    assert (out == 0.0).float().mean() > 0.8
 
 
 def test_union_leaves_static_single_frame_mask(monkeypatch, tmp_path) -> None:
@@ -672,25 +677,27 @@ def test_av_encode_requires_audio_track(monkeypatch, tmp_path) -> None:
 
 def test_union_4d_frames_at_batch_from_set_mask(monkeypatch, tmp_path) -> None:
     nodes = _import_nodes(monkeypatch, tmp_path)
-    # SetLatentNoiseMask reshapes [F,H,W] -> [F,1,H,W]; frames are at batch
+    # SetLatentNoiseMask reshapes [F,H,W] -> [F,1,H,W]; frames are at batch.
+    # EXPERIMENTAL order: strokes must be on picked frames {2, 6} for 8->2.
     mask = torch.zeros(8, 1, 6, 8)
-    mask[3, 0, 2, 3] = 1.0  # window 0 (frames 0-3)
-    mask[5, 0, 4, 5] = 1.0  # window 1 (frames 4-7)
+    mask[2, 0, 2, 3] = 1.0  # picked frame 2
+    mask[6, 0, 4, 5] = 1.0  # picked frame 6
     out = nodes.reshape_mask(mask, (1, 24, 2, 6, 8), video_inpainting=True)
     assert out.shape == (1, 24, 2, 6, 8)
-    assert out[0, 0, 0, 2, 3] == 1.0  # window 0 union
-    assert out[0, 0, 1, 4, 5] == 1.0  # window 1 union
+    assert out[0, 0, 0, 2, 3] == 1.0  # slice 0 carries frame 2's stroke
+    assert out[0, 0, 1, 4, 5] == 1.0  # slice 1 carries frame 6's stroke
     assert out[0, 0, 0].max() == 1.0 and out[0, 0, 1].max() == 1.0
 
 
 def test_union_4d_frames_at_batch_124_to_37(monkeypatch, tmp_path) -> None:
     nodes = _import_nodes(monkeypatch, tmp_path)
+    # EXPERIMENTAL order: frame 62 is a picked anchor for 124 -> 37 slices
     mask = torch.zeros(124, 1, 864, 480)
-    mask[60, 0, 100:140, 100:140] = 1.0
+    mask[62, 0, 100:140, 100:140] = 1.0
     out = nodes.reshape_mask(mask, (1, 24, 37, 30, 54), video_inpainting=True)
     assert out.shape == (1, 24, 37, 30, 54)
     assert out.max() == 1.0  # the painted frame is covered, not dropped
-    assert (out == 0.0).float().mean() > 0.95
+    assert (out == 0.0).float().mean() > 0.8
 
 
 def test_audio_mask_4d_via_set_mask_shape(monkeypatch, tmp_path) -> None:

@@ -72,3 +72,50 @@ def test_prepare_mask_accepts_hw_and_moves_device(monkeypatch) -> None:
     out = lanpaint_nodes.prepare_mask(input_mask, output_shape, device=torch.device("cpu"), video_inpainting=False)
     assert tuple(out.shape) == output_shape
     assert out.device.type == "cpu"
+
+
+def test_video_union_covers_picked_frames(monkeypatch) -> None:
+    """EXPERIMENTAL order (nearest-exact first, slice-level union): a stroke
+    on a frame that the resample picks survives, and the sliding max spreads
+    it to neighboring slices."""
+    lanpaint_nodes = _import_nodes(monkeypatch, "0.6.0")
+
+    # 8 frames -> 2 slices; nearest-exact picks frames {2, 6}. Strokes on
+    # picked frames 2 and 6, on rows/cols the 8->4 grid samples ({1,3,5,7}).
+    mask = torch.zeros(8, 8, 8)
+    mask[2, 5, 5] = 1.0
+    mask[6, 7, 7] = 1.0
+
+    out = lanpaint_nodes.reshape_mask(mask, (1, 16, 2, 4, 4), video_inpainting=True)
+    assert tuple(out.shape) == (1, 16, 2, 4, 4)
+    # both slices are marked (slice-level union spreads the picked values)
+    assert out[0, 0, 0].max().item() == 1.0
+    assert out[0, 0, 1].max().item() == 1.0
+    # the stroke positions land on the token containing the stroke pixel
+    assert out[0, 0, 0, 2, 2].item() == 1.0
+    assert out[0, 0, 1, 3, 3].item() == 1.0
+
+
+def test_video_union_drops_unpicked_frames(monkeypatch) -> None:
+    """EXPERIMENTAL order: a stroke on a frame that no slice picks (e.g.
+    frame 3, since nearest-exact picks {2, 6}) is silently lost."""
+    lanpaint_nodes = _import_nodes(monkeypatch, "0.6.0")
+
+    mask = torch.zeros(8, 8, 8)
+    mask[3, 5, 5] = 1.0
+
+    out = lanpaint_nodes.reshape_mask(mask, (1, 16, 2, 4, 4), video_inpainting=True)
+    assert out.max().item() == 0.0
+
+
+def test_video_union_short_sequence(monkeypatch) -> None:
+    """A 3-frame sequence downsamples to one slice; the stroke must survive
+    if it lands on the frame the resample picks (floor(0.5*3) = frame 1)."""
+    lanpaint_nodes = _import_nodes(monkeypatch, "0.6.0")
+
+    mask = torch.zeros(3, 8, 8)
+    mask[1, 5, 5] = 1.0
+
+    out = lanpaint_nodes.reshape_mask(mask, (1, 16, 1, 4, 4), video_inpainting=True)
+    assert tuple(out.shape) == (1, 16, 1, 4, 4)
+    assert out.max().item() == 1.0

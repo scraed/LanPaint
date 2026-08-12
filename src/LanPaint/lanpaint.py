@@ -5,7 +5,7 @@ from .earlystop import LanPaintEarlyStopper
 from .types import LangevinState
 
 class LanPaint():
-    def __init__(self, Model, NSteps, Friction, Lambda, Beta, StepSize, IS_FLUX = False, IS_FLOW = False, EarlyStopThreshold = 0.0, EarlyStopPatience = 1, EarlyStopHook = None):
+    def __init__(self, Model, NSteps, Friction, Lambda, Beta, StepSize, IS_FLUX = False, IS_FLOW = False, EarlyStopThreshold = 0.0, EarlyStopPatience = 1, EarlyStopHook = None, MinStepFrac = 0.0):
         self.n_steps = NSteps
         self.chara_lamb = Lambda
         self.IS_FLUX = IS_FLUX
@@ -14,6 +14,7 @@ class LanPaint():
         self.inner_model = Model
         self.friction = Friction
         self.chara_beta = Beta
+        self.min_step_frac = MinStepFrac
         self.img_dim_size = None
         self.early_stop_threshold = EarlyStopThreshold
         self.early_stop_patience = EarlyStopPatience
@@ -72,7 +73,12 @@ class LanPaint():
             replace_sigma = sigma * (1 - ai) + Flow_a * ai
             current_times = (VE_Sigma, abt, Flow_t)
 
-        step_size = self.step_size * (1 - abt)
+        # Above MinStepFrac the step size scales with the remaining noise
+        # fraction (1 - abt); below it the step size is pinned at
+        # StepSize*MinStepFrac and the inner-step count ramps down instead
+        # (see KSamplerX0Inpaint.__call__). 0.0 disables the pin (the step
+        # size keeps shrinking to zero as before).
+        step_size = self.step_size * (1 - abt).clamp(min=self.min_step_frac)
         step_size = self.add_none_dims(step_size)
         # self.inner_model.inner_model.scale_latent_inpaint returns variance exploding x_t values
         # This is the replace step
