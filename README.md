@@ -103,7 +103,7 @@ Check our latest [Krea2 Example](#example-krea2-inpaintlanpaint-k-sampler-3-step
 - [Features](#features)
 - [Quickstart](#quickstart)
 - [How to Use Examples](#how-to-use-examples)
-- [Video Examples (Beta)](#video-examples-beta)
+- [Video Examples](#video-examples)
   - [Wan 2.2 Video Inpainting](#wan-22-video-inpainting)
   - [Wan 2.2 5B Video Inpainting](#wan-22-5b-video-inpainting)
   - [Wan 2.2 Video Outpainting](#wan-22-video-outpainting)
@@ -178,7 +178,7 @@ Once installed, you'll find the LanPaint nodes under the "sampling" category in 
    - **[VAE Encode for Inpainting](https://comfyanonymous.github.io/ComfyUI_examples/inpaint/)**
    - **[Set Latent Noise Mask](https://comfyui-wiki.com/en/tutorial/basic/how-to-inpaint-an-image-in-comfyui)**
 
-## Video Examples (Beta)
+## Video Examples
 
 LanPaint now supports video inpainting with Wan 2.2, enabling you to seamlessly inpaint masked regions across video frames while maintaining temporal consistency.
 
