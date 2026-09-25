@@ -31,7 +31,7 @@ LanPaint is a training-free partial conditional sampler that enables mask-constr
 * 🧩 **ComfyUI Implementation:** This repository
 * 🐍 **Diffusers Implementation:** [LanPaint-Diffusers](https://github.com/charrywhite/LanPaint-diffusers) by [@charrywhite](https://github.com/charrywhite/)
 * 🧪 **Benchmark & Reproduction:** [LanPaintBench](https://github.com/scraed/LanPaintBench)
-* 🌐 **Project Website:** [LanPaint Page](https://scraed.github.io/scraedBlog/lanpaint/)
+* 🌐 **Official Project Website:** [LanPaint](https://scraed.github.io/scraedBlog/lanpaint/)
 
 ### Citation
 
