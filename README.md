@@ -15,6 +15,8 @@ Universally applicable inpainting ability for every model. LanPaint sampler lets
 
 This is the official implementation of ["LanPaint: Training-Free Diffusion Inpainting with Asymptotically Exact and Fast Conditional Sampling"](https://arxiv.org/abs/2502.03491), accepted by TMLR. 
 
+LanPaint is a training-free partial conditional sampler that enables mask-constrained local editing with pretrained diffusion and rectified-flow models, without fine-tuning or backpropagation.
+
 The repository is for ComfyUI extension. 
 
 Diffusers Support: [LanPaint-Diffusers](https://github.com/charrywhite/LanPaint-diffusers) by [@charrywhite](https://github.com/charrywhite/)
