@@ -23,6 +23,16 @@ Diffusers Support: [LanPaint-Diffusers](https://github.com/charrywhite/LanPaint-
 
 Benchmark code for paper reproduce: [LanPaintBench](https://github.com/scraed/LanPaintBench).
 
+## What LanPaint Enables
+
+- Training-free image inpainting
+- Outpainting and generative fill
+- Mask-constrained local image editing
+- Object / region replacement with text guidance
+- Character-consistent local generation
+- Video inpainting and local video editing
+- Video + audio masked generation
+  
 ## Citation
 
 ```
