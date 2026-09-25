@@ -13,16 +13,6 @@
 
 Universally applicable inpainting ability for every model. LanPaint sampler lets the model "think" through multiple iterations before denoising, enabling you to invest more computation time for superior inpainting quality.  
 
-This is the official implementation of ["LanPaint: Training-Free Diffusion Inpainting with Asymptotically Exact and Fast Conditional Sampling"](https://arxiv.org/abs/2502.03491), accepted by TMLR. 
-
-LanPaint is a training-free partial conditional sampler that enables mask-constrained local editing with pretrained diffusion and rectified-flow models, without fine-tuning or backpropagation.
-
-The repository is for ComfyUI extension. 
-
-Diffusers Support: [LanPaint-Diffusers](https://github.com/charrywhite/LanPaint-diffusers) by [@charrywhite](https://github.com/charrywhite/)
-
-Benchmark code for paper reproduce: [LanPaintBench](https://github.com/scraed/LanPaintBench).
-
 ## What LanPaint Enables
 
 - Training-free image inpainting
@@ -32,10 +22,19 @@ Benchmark code for paper reproduce: [LanPaintBench](https://github.com/scraed/La
 - Character-consistent local generation
 - Video inpainting and local video editing
 - Video + audio masked generation
-  
-## Citation
 
-```
+## Research & Benchmark
+
+LanPaint is a training-free partial conditional sampler that enables mask-constrained inpainting and local editing with pretrained diffusion and rectified-flow models, without fine-tuning or backpropagation.
+
+* 📄 **Paper:** [LanPaint: Training-Free Diffusion Inpainting with Asymptotically Exact and Fast Conditional Sampling](https://openreview.net/forum?id=JPC8JyOUSW) — TMLR 2025
+* 🧩 **ComfyUI Implementation:** This repository
+* 🐍 **Diffusers Implementation:** [LanPaint-Diffusers](https://github.com/charrywhite/LanPaint-diffusers) by [@charrywhite](https://github.com/charrywhite/)
+* 🧪 **Benchmark & Reproduction:** [LanPaintBench](https://github.com/scraed/LanPaintBench)
+
+### Citation
+
+```bibtex id="2r5ioa"
 @article{
 zheng2025lanpaint,
 title={LanPaint: Training-Free Diffusion Inpainting with Asymptotically Exact and Fast Conditional Sampling},
@@ -43,10 +42,10 @@ author={Candi Zheng and Yuan Lan and Yang Wang},
 journal={Transactions on Machine Learning Research},
 issn={2835-8856},
 year={2025},
-url={https://openreview.net/forum?id=JPC8JyOUSW},
-note={}
+url={https://openreview.net/forum?id=JPC8JyOUSW}
 }
 ```
+
 **🎉 NEW 2026: Join our discord!**
 
 [Join our Discord](https://discord.gg/yN5wYDE6W4) to share experiences, discuss features, and explore future development.
