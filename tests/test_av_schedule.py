@@ -322,3 +322,26 @@ def test_prepare_step_size_handles_per_row_parameters() -> None:
     adt = (A_x * dtx).flatten()
     assert adt[0] == pytest.approx(0.2)   # 1/(1-0.5) * 0.1
     assert adt[-1] == pytest.approx(0.2)  # 1/(1-0.9) * 0.02 -- bounded invariant
+
+
+def test_hide_h3_denoise_mask_strips_and_restores(monkeypatch) -> None:
+    # ComfyUI >= 0.34: the per-token denoise mask switches the MiniMax H3 DiT
+    # to mask-driven row timesteps. LanPaint hides it from extra_conds during
+    # the paint loop so the DiT keeps the uniform 0.33 row timesteps.
+    nodes = _import_nodes(monkeypatch)
+    captured = {}
+
+    class FakeH3Model:
+        def extra_conds(self, **kwargs):  # type: ignore[no-untyped-def]
+            captured.update(kwargs)
+            return {}
+
+    model = FakeH3Model()
+    with nodes._hide_h3_denoise_mask(model):
+        model.extra_conds(denoise_mask="MASK", latent_shapes=[(1, 2), (1, 2)])
+    assert "denoise_mask" not in captured            # hidden from the model
+    assert captured["latent_shapes"] is not None      # other conds still pass
+
+    captured.clear()
+    model.extra_conds(denoise_mask="MASK", latent_shapes=[(1, 2), (1, 2)])
+    assert captured["denoise_mask"] == "MASK"       # restored after the loop

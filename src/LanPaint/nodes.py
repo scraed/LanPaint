@@ -1,6 +1,6 @@
 import json
 import os
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import math
 # import nodes.py
 import comfy
@@ -55,6 +55,39 @@ def _version_tuple(value):
     return tuple(int(part) if part.isdigit() else 0 for part in value.split("."))
 
 COMFYUI_VERSION_060_OR_NEWER = _version_tuple(comfyui_version.__version__) >= (0, 6, 0)
+
+# ComfyUI >= 0.34 runs MiniMax H3 with per-token denoise-mask row timesteps
+# (commit ff6c8a8a). LanPaint keeps its 0.33 single-schedule contract, so this
+# gates hiding the mask from the model during the paint loop.
+COMFYUI_H3_DENOISE_MASK_CONTRACT = _version_tuple(getattr(comfyui_version, "__version__", "0.0.0")) >= (0, 34, 0)
+
+@contextmanager
+def _hide_h3_denoise_mask(model):
+    """ComfyUI >= 0.34 hands MiniMax H3 a per-token denoise mask, which
+    switches the DiT to mask-driven row timesteps (commit ff6c8a8a). LanPaint
+    implements the 0.33 single-schedule contract in its own replace step and
+    inner dynamics, so during the paint loop the mask is hidden from the
+    model's extra_conds and the DiT keeps the uniform row timesteps that
+    LanPaint's math expects."""
+    had_instance_attr = "extra_conds" in getattr(model, "__dict__", {})
+    original_extra_conds = model.extra_conds
+
+    def _extra_conds_without_mask(*args, **kwargs):
+        kwargs.pop("denoise_mask", None)
+        return original_extra_conds(*args, **kwargs)
+
+    model.extra_conds = _extra_conds_without_mask
+    try:
+        yield
+    finally:
+        if had_instance_attr:
+            model.extra_conds = original_extra_conds
+        else:
+            try:
+                del model.extra_conds
+            except AttributeError:
+                model.extra_conds = original_extra_conds
+
 
 def reshape_mask(input_mask, output_shape,video_inpainting=False):
     dims = len(output_shape) - 2
@@ -190,6 +223,13 @@ class CFGGuider_LanPaint:
         self.minimax_h3_audio = _detect_minimax_h3_audio(
             self.model_patcher, self.model_options, kwargs.get("latent_shapes", None))
 
+        # ComfyUI >= 0.34 switches MiniMax H3 to per-token row timesteps driven
+        # by the denoise mask; LanPaint's replace step and inner dynamics follow
+        # the 0.33 single-schedule contract, so hide the mask from the model for
+        # the paint loop and keep the row timesteps uniform.
+        h3_hide_mask = self.minimax_h3_audio is not None and COMFYUI_H3_DENOISE_MASK_CONTRACT
+        hide_mask_ctx = _hide_h3_denoise_mask(self.inner_model) if h3_hide_mask else nullcontext()
+
         if denoise_mask is not None:
             video_inpainting = self.model_options.get("video_inpainting", False)
             if tuple(denoise_mask.shape) != tuple(noise.shape):
@@ -204,7 +244,8 @@ class CFGGuider_LanPaint:
 
         try:
             self.model_patcher.pre_run()
-            output = self.inner_sample(noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed, **kwargs)
+            with hide_mask_ctx:
+                output = self.inner_sample(noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed, **kwargs)
         finally:
             self.model_patcher.cleanup()
 
