@@ -451,79 +451,10 @@ Check [Mased Qwen Edit Workflow](https://github.com/scraed/LanPaint/tree/master/
 
 ### Example Qwen Image 2.1: InPaint(LanPaint K Sampler, 5 steps of thinking)
 
-LanPaint works with the Qwen-Image 2.1 DiT (64-channel latent, 16x downscale) with no
-changes to the sampler: it is a rectified-flow model, so the same conversions that handle
-Flux and Qwen-Image 1.0 apply.
-
-![Qwen 2.1 Result](https://github.com/scraed/LanPaint/blob/master/examples/Example_31/InPainted_Drag_Me_to_ComfyUI.png)
-[View Workflow & Masks](https://github.com/scraed/LanPaint/tree/master/examples/Example_31)
-
-Original, the region the mask covers, and the inpainted result - note the new sole is
-allowed to grow past the old outline, so its transparency is generated rather than copied:
+Qwen-Image 2.1 works with LanPaint, and pictures that carry transparency are inpainted along with their alpha channel - the mask region gets a new silhouette, not just new pixels. Grab the workflow and images from `examples/Example_31` (or drag `InPainted_Drag_Me_to_ComfyUI.png` into ComfyUI), point `Load Image` at your RGBA picture, `Load Image (as Mask)` at your mask in greyscale (white = repaint), and write your prompt. Compared to any other LanPaint workflow the only addition is one `Join Image With Alpha` node, which re-attaches the picture's alpha - `Load Image` hands it out on its `MASK` output rather than keeping it on the image - and `LanPaint_ImageDecode` then returns RGBA if that is what it received.
 
 ![Qwen 2.1 before / masked / after](https://github.com/scraed/LanPaint/blob/master/examples/Example_31/Comparison.png)
-
-You need the Qwen-Image 2.1 files from [Comfy-Org](https://huggingface.co/Comfy-Org):
-`qwen_image_2.1_int8_convrot.safetensors` (diffusion_models),
-`qwen3vl_8b_int8_convrot.safetensors` (text_encoders) and
-`qwen_image_2.1_vae_bf16.safetensors` (vae).
-
-The example picture is itself a Qwen-Image 2.1 text-to-image render (25 steps, cfg 1,
-euler/simple, 1024x1024, seed 777, prompt enhancer on), so the whole before/after comes from
-the same model. It was generated with a transparent background, which is what the second
-half of this example is about: the alpha channel is part of the image, and the inpainting
-edit is allowed to change it. The mask covers the boot below the ankle; the rebuilt sole
-grows past the old outline, so the transparency in that region is *generated*, not copied.
-
-Two things differ from the Qwen-Image 1.0 example:
-
-1. **Conditioning** comes from `Text Encode Qwen Image Edit Plus`, which takes the
-   reference image on a plain `IMAGE` socket and returns a single CONDITIONING, so the
-   negative prompt needs its own `CLIPTextEncode`. Note that in ComfyUI builds where
-   `Text Encode Qwen Image 2.1` exposes its `images` input as one socket instead of one
-   socket per image, that node's autogrow parameter never arrives as a dict and it raises
-   *"Boolean value of Tensor with more than one value is ambiguous"* - the Edit Plus encoder
-   takes a plain `IMAGE` and sidesteps the problem.
-2. **Caching**: `Qwen Image 2.1 Cache` reuses the prompt + reference K/V across steps.
-   LanPaint calls the model several times per outer step, so the cache is bypassed during
-   the paint loop; keep the node for the cheap single-model-call steps, or drop it if you
-   are short on VRAM.
-
-One picture is enough: the same `image1` feeds both the reference conditioning and
-`LanPaint_ImageEncode` - no second copy, and no VAE round trip on the reference, because
-the text encoder does its own resizing.
-
-**The mask is a separate greyscale file** - white = repaint, read through
-`Load Image (as Mask)` with `channel = red`. Keeping it out of the picture's own alpha
-matters for this model in particular: Qwen Image 2.1's alpha channel means *image
-transparency*, so stashing the inpainting region there would make the two indistinguishable.
-
-**Carrying the transparency through the sampler.** The Qwen Image 2.1 VAE is 4-in/4-out
-(`encoder.conv1` takes 4 channels and the decoder head emits 4), so alpha is part of the
-latent rather than something bolted on afterwards.
-
-- `Load Image` never puts alpha on the `IMAGE`; it hands it out on its `MASK` output. That
-  mask is `1 - alpha` (1 = transparent), which is exactly what
-  `Join Image With Alpha.alpha` wants, so it connects straight through with no invert -
-  channel 4 then equals the file's own alpha. Wire the result to `image1`,
-  `LanPaint_ImageEncode.image` and `LanPaint_ImageDecode.image`.
-- `LanPaint_ImageDecode` keeps the input's channel count, so an RGBA image comes back RGBA
-  and an RGB image still comes back RGB.
-- Keep the mask **modest** - about 16% of the frame here. LanPaint anchors everything
-  outside the mask to the ground truth on every step, so a mask that swallows most of the
-  picture leaves the model without context. Measured on this example: 16% is crisp, 35-40%
-  starts to mottle, and past ~70% the subject collapses into blotches while the alpha grows
-  a halo.
-
-Keep the mask a plain **binary** silhouette and let `LanPaint_ImageDecode`'s `blend_overlap`
-do the softening - a feathered edge, or painting the masked region white in RGB, both leak a
-visible rim into the result.
-
-Everything else is the standard LanPaint chain: `LanPaint_ImageEncode` replaces the empty
-latent with the VAE-encoded pixels plus the mask, `LanPaint_KSampler` (5 steps of thinking,
-cfg 4, euler/simple, 20 steps) denoises, and `LanPaint_ImageDecode` decodes and blends the
-result back inside the mask. On one RTX A6000 at 1024x1024 that costs about 100 s, against
-40 s for 1 step of thinking and 25 s for a plain KSampler.
+[View Workflow & Masks](https://github.com/scraed/LanPaint/tree/master/examples/Example_31)
 
 ### Example Qwen Image: InPaint(LanPaint K Sampler, 5 steps of thinking)
 
