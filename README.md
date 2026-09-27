@@ -152,7 +152,7 @@ Check our latest [Krea2 Example](#example-krea2-inpaintlanpaint-k-sampler-3-step
 
 ## Features
 
-- **Universal Compatibility** – Works instantly with almost any model (**Ideogram4, Krea2, Z-image, Z-image-base, Hunyuan, Wan 2.2, Qwen Image/Edit, Anima, HiDream, SD 3.5, Flux-series, SDXL, SD 1.5 or custom LoRAs**) and ControlNet.  
+- **Universal Compatibility** – Works instantly with almost any model (**Ideogram4, Krea2, Z-image, Z-image-base, Hunyuan, Wan 2.2, Qwen Image 2.1/Image/Edit, Anima, HiDream, SD 3.5, Flux-series, SDXL, SD 1.5 or custom LoRAs**) and ControlNet.  
 ![Inpainting Result 13](https://github.com/scraed/LanPaint/blob/master/examples/InpaintChara_13.jpg) 
 - **No Training Needed** – Works out of the box with your existing model.  
 - **Easy to Use** – Same workflow as standard ComfyUI KSampler.  
@@ -458,6 +458,11 @@ Flux and Qwen-Image 1.0 apply.
 ![Qwen 2.1 Result](https://github.com/scraed/LanPaint/blob/master/examples/Example_31/InPainted_Drag_Me_to_ComfyUI.png)
 [View Workflow & Masks](https://github.com/scraed/LanPaint/tree/master/examples/Example_31)
 
+Original, the region the mask covers, and the inpainted result - note the new sole is
+allowed to grow past the old outline, so its transparency is generated rather than copied:
+
+![Qwen 2.1 before / masked / after](https://github.com/scraed/LanPaint/blob/master/examples/Example_31/Comparison.png)
+
 You need the Qwen-Image 2.1 files from [Comfy-Org](https://huggingface.co/Comfy-Org):
 `qwen_image_2.1_int8_convrot.safetensors` (diffusion_models),
 `qwen3vl_8b_int8_convrot.safetensors` (text_encoders) and
@@ -704,6 +709,10 @@ Submit a PR to add your tutorial/video here, or open an [Issue](https://github.c
 [Working togather with crop&stitch](https://github.com/scraed/LanPaint/issues/46)
 
 ## Updates
+- 2026/09/28
+    - Add Qwen-Image 2.1 inpainting support with LanPaint KSampler (Example_31).
+    - Inpainting a picture that carries transparency now works end to end: the 2.1 VAE is 4-in/4-out, so the alpha travels through the latent and is edited alongside the pixels. Keep the inpainting mask in its own greyscale file, since 2.1's alpha channel means image transparency.
+    - `LanPaint_ImageDecode` now matches the decoded channel count to the source image, so an RGBA source comes back RGBA and an RGB source still comes back RGB.
 - 2026/08/12
     - `v2.1.0`: Significantly accelerated LanPaint using a new schedule mechanism.
     - Fix bugs for MiniMax H3 on the latest ComfyUI.
