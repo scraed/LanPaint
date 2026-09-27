@@ -54,6 +54,12 @@ url={https://openreview.net/forum?id=JPC8JyOUSW}
 `v2.1.0` significantly accelerates LanPaint with a new schedule mechanism and fixes MiniMax H3 support on the latest ComfyUI.
 If your inpainting results have wierd (glowing / broken) mask boundary, check this [issue](https://github.com/scraed/LanPaint/issues/80).
 
+**🎨 NEW: LanPaint now supports Qwen-Image 2.1, transparency and all!**
+
+![Qwen 2.1 before / masked / after](https://github.com/scraed/LanPaint/blob/master/examples/Example_31/Comparison.png)
+
+If your picture carries an alpha channel, it gets inpainted too - the masked region comes back with a new silhouette, not just new pixels. Check our latest [Qwen Image 2.1 Example](#example-qwen-image-21-inpaintlanpaint-k-sampler-5-steps-of-thinking).
+
 **🎬 NEW: LanPaint now supports MiniMax H3 video + audio inpainting!**
 
 | Masked Input (paint in the editor) | Mask (visible overlay) | Inpainted Result |
