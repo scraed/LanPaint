@@ -1,0 +1,976 @@
+{
+ "id": "c4e8a1f7-2b93-4d6e-8a50-1f7e9c3b6d28",
+ "revision": 0,
+ "last_node_id": 14,
+ "last_link_id": 19,
+ "nodes": [
+  {
+   "id": 1,
+   "type": "UNETLoader",
+   "pos": [
+    -1180,
+    40
+   ],
+   "size": [
+    390,
+    82
+   ],
+   "flags": {},
+   "order": 1,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "localized_name": "MODEL",
+     "name": "MODEL",
+     "type": "MODEL",
+     "slot_index": 0,
+     "links": [
+      1
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "UNETLoader",
+    "cnr_id": "comfy-core"
+   },
+   "widgets_values": [
+    "qwen_image_2.1_int8_convrot.safetensors",
+    "default"
+   ]
+  },
+  {
+   "id": 2,
+   "type": "CLIPLoader",
+   "pos": [
+    -1180,
+    170
+   ],
+   "size": [
+    390,
+    106
+   ],
+   "flags": {},
+   "order": 2,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "localized_name": "CLIP",
+     "name": "CLIP",
+     "type": "CLIP",
+     "slot_index": 0,
+     "links": [
+      3,
+      4
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "CLIPLoader",
+    "cnr_id": "comfy-core"
+   },
+   "widgets_values": [
+    "qwen3vl_8b_int8_convrot.safetensors",
+    "qwen_image",
+    "default"
+   ]
+  },
+  {
+   "id": 3,
+   "type": "VAELoader",
+   "pos": [
+    -1180,
+    320
+   ],
+   "size": [
+    390,
+    58
+   ],
+   "flags": {},
+   "order": 3,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "localized_name": "VAE",
+     "name": "VAE",
+     "type": "VAE",
+     "slot_index": 0,
+     "links": [
+      5,
+      6,
+      7
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "VAELoader",
+    "cnr_id": "comfy-core"
+   },
+   "widgets_values": [
+    "qwen_image_2.1_vae_bf16.safetensors"
+   ]
+  },
+  {
+   "id": 4,
+   "type": "QwenImage21Cache",
+   "pos": [
+    -740,
+    40
+   ],
+   "size": [
+    310,
+    82
+   ],
+   "flags": {},
+   "order": 4,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "model",
+     "name": "model",
+     "type": "MODEL",
+     "link": 1
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "MODEL",
+     "name": "MODEL",
+     "type": "MODEL",
+     "slot_index": 0,
+     "links": [
+      2
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "QwenImage21Cache",
+    "cnr_id": "comfy-core"
+   },
+   "widgets_values": [
+    "auto",
+    "default"
+   ]
+  },
+  {
+   "id": 5,
+   "type": "LoadImage",
+   "pos": [
+    -1180,
+    420
+   ],
+   "size": [
+    390,
+    440
+   ],
+   "flags": {},
+   "order": 5,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "localized_name": "IMAGE",
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "slot_index": 0,
+     "links": [
+      8
+     ]
+    },
+    {
+     "localized_name": "MASK",
+     "name": "MASK",
+     "type": "MASK",
+     "slot_index": 1,
+     "links": [
+      9
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoadImage",
+    "cnr_id": "comfy-core"
+   },
+   "widgets_values": [
+    "Image_Load_Me_in_Loader.png",
+    "image"
+   ],
+   "title": "The picture (RGBA: the alpha is the background)"
+  },
+  {
+   "id": 6,
+   "type": "JoinImageWithAlpha",
+   "pos": [
+    -740,
+    420
+   ],
+   "size": [
+    330,
+    60
+   ],
+   "flags": {},
+   "order": 6,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "image",
+     "name": "image",
+     "type": "IMAGE",
+     "link": 8
+    },
+    {
+     "localized_name": "alpha",
+     "name": "alpha",
+     "type": "MASK",
+     "link": 9
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "IMAGE",
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "slot_index": 0,
+     "links": [
+      10,
+      11,
+      12
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "JoinImageWithAlpha",
+    "cnr_id": "comfy-core"
+   },
+   "widgets_values": [],
+   "title": "Re-attach the alpha as the 4th channel"
+  },
+  {
+   "id": 7,
+   "type": "LoadImageMask",
+   "pos": [
+    -1180,
+    900
+   ],
+   "size": [
+    390,
+    480
+   ],
+   "flags": {},
+   "order": 7,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "localized_name": "MASK",
+     "name": "MASK",
+     "type": "MASK",
+     "slot_index": 0,
+     "links": [
+      13,
+      14
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoadImageMask",
+    "cnr_id": "comfy-core"
+   },
+   "widgets_values": [
+    "Mask_Load_Me_in_Loader.png",
+    "red"
+   ],
+   "title": "The mask, on its own (white = rebuild)"
+  },
+  {
+   "id": 8,
+   "type": "TextEncodeQwenImageEditPlus",
+   "pos": [
+    -740,
+    520
+   ],
+   "size": [
+    440,
+    250
+   ],
+   "flags": {},
+   "order": 8,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "clip",
+     "name": "clip",
+     "type": "CLIP",
+     "link": 3
+    },
+    {
+     "localized_name": "prompt",
+     "name": "prompt",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "prompt"
+     }
+    },
+    {
+     "localized_name": "vae",
+     "name": "vae",
+     "type": "VAE",
+     "link": 5
+    },
+    {
+     "localized_name": "image1",
+     "name": "image1",
+     "type": "IMAGE",
+     "link": 10
+    },
+    {
+     "localized_name": "image2",
+     "name": "image2",
+     "type": "IMAGE",
+     "link": null
+    },
+    {
+     "localized_name": "image3",
+     "name": "image3",
+     "type": "IMAGE",
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "CONDITIONING",
+     "name": "CONDITIONING",
+     "type": "CONDITIONING",
+     "slot_index": 0,
+     "links": [
+      15
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "TextEncodeQwenImageEditPlus",
+    "cnr_id": "comfy-core"
+   },
+   "widgets_values": [
+    "the boot's sole and forefoot replaced by a sleek futuristic mechanical unit: segmented brushed titanium plating with fine panel lines, glowing cyan energy strips along the flanks, a sculpted dark carbon-fibre heel block, precise engineered details and tiny bolts, the brown leather upper above stays exactly as it is, high-end sci-fi product photography, transparent background"
+   ],
+   "title": "Text Encode Qwen Image Edit Plus (reference + prompt)",
+   "color": "#232",
+   "bgcolor": "#353"
+  },
+  {
+   "id": 9,
+   "type": "CLIPTextEncode",
+   "pos": [
+    -740,
+    800
+   ],
+   "size": [
+    440,
+    150
+   ],
+   "flags": {},
+   "order": 9,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "clip",
+     "name": "clip",
+     "type": "CLIP",
+     "link": 4
+    },
+    {
+     "localized_name": "text",
+     "name": "text",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "text"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "CONDITIONING",
+     "name": "CONDITIONING",
+     "type": "CONDITIONING",
+     "slot_index": 0,
+     "links": [
+      16
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "CLIPTextEncode",
+    "cnr_id": "comfy-core"
+   },
+   "widgets_values": [
+    "低分辨率，低画质，肢体畸形，手指畸形，画面过饱和，蜡像感，人脸无细节，过度光滑，画面具有AI感，模糊，变形"
+   ],
+   "title": "CLIP Text Encode (Negative Prompt)",
+   "color": "#223",
+   "bgcolor": "#335"
+  },
+  {
+   "id": 10,
+   "type": "LanPaint_ImageEncode",
+   "pos": [
+    -240,
+    40
+   ],
+   "size": [
+    300,
+    110
+   ],
+   "flags": {},
+   "order": 10,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "image",
+     "name": "image",
+     "type": "IMAGE",
+     "link": 11
+    },
+    {
+     "localized_name": "vae",
+     "name": "vae",
+     "type": "VAE",
+     "link": 6
+    },
+    {
+     "localized_name": "mask",
+     "name": "mask",
+     "type": "MASK",
+     "link": 13
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "LATENT",
+     "name": "LATENT",
+     "type": "LATENT",
+     "slot_index": 0,
+     "links": [
+      17
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LanPaint_ImageEncode",
+    "cnr_id": "comfy-core"
+   },
+   "widgets_values": []
+  },
+  {
+   "id": 11,
+   "type": "LanPaint_KSampler",
+   "pos": [
+    -240,
+    190
+   ],
+   "size": [
+    330,
+    320
+   ],
+   "flags": {},
+   "order": 11,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "model",
+     "name": "model",
+     "type": "MODEL",
+     "link": 2
+    },
+    {
+     "localized_name": "positive",
+     "name": "positive",
+     "type": "CONDITIONING",
+     "link": 15
+    },
+    {
+     "localized_name": "negative",
+     "name": "negative",
+     "type": "CONDITIONING",
+     "link": 16
+    },
+    {
+     "localized_name": "latent_image",
+     "name": "latent_image",
+     "type": "LATENT",
+     "link": 17
+    },
+    {
+     "localized_name": "seed",
+     "name": "seed",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "seed"
+     }
+    },
+    {
+     "localized_name": "steps",
+     "name": "steps",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "steps"
+     }
+    },
+    {
+     "localized_name": "cfg",
+     "name": "cfg",
+     "type": "FLOAT",
+     "link": null,
+     "widget": {
+      "name": "cfg"
+     }
+    },
+    {
+     "localized_name": "sampler_name",
+     "name": "sampler_name",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "sampler_name"
+     }
+    },
+    {
+     "localized_name": "scheduler",
+     "name": "scheduler",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "scheduler"
+     }
+    },
+    {
+     "localized_name": "denoise",
+     "name": "denoise",
+     "type": "FLOAT",
+     "link": null,
+     "widget": {
+      "name": "denoise"
+     }
+    },
+    {
+     "localized_name": "LanPaint_NumSteps",
+     "name": "LanPaint_NumSteps",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "LanPaint_NumSteps"
+     }
+    },
+    {
+     "localized_name": "LanPaint_PromptMode",
+     "name": "LanPaint_PromptMode",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "LanPaint_PromptMode"
+     }
+    },
+    {
+     "localized_name": "LanPaint_Info",
+     "name": "LanPaint_Info",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "LanPaint_Info"
+     }
+    },
+    {
+     "localized_name": "Inpainting_mode",
+     "name": "Inpainting_mode",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "Inpainting_mode"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "LATENT",
+     "name": "LATENT",
+     "type": "LATENT",
+     "slot_index": 0,
+     "links": [
+      18
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LanPaint_KSampler",
+    "cnr_id": "comfy-core"
+   },
+   "widgets_values": [
+    777,
+    "fixed",
+    20,
+    4.0,
+    "euler",
+    "simple",
+    1.0,
+    5,
+    "Image First",
+    "LanPaint KSampler. For more info, visit https://github.com/scraed/LanPaint. If you find it useful, please give a star ⭐!",
+    "🖼️ Image Inpainting",
+    "lanpaint_star_button"
+   ]
+  },
+  {
+   "id": 12,
+   "type": "LanPaint_ImageDecode",
+   "pos": [
+    180,
+    40
+   ],
+   "size": [
+    300,
+    120
+   ],
+   "flags": {},
+   "order": 12,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "samples",
+     "name": "samples",
+     "type": "LATENT",
+     "link": 18
+    },
+    {
+     "localized_name": "vae",
+     "name": "vae",
+     "type": "VAE",
+     "link": 7
+    },
+    {
+     "localized_name": "image",
+     "name": "image",
+     "type": "IMAGE",
+     "link": 12
+    },
+    {
+     "localized_name": "mask",
+     "name": "mask",
+     "type": "MASK",
+     "link": 14
+    },
+    {
+     "localized_name": "blend_overlap",
+     "name": "blend_overlap",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "blend_overlap"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "IMAGE",
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "slot_index": 0,
+     "links": [
+      19
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LanPaint_ImageDecode",
+    "cnr_id": "comfy-core"
+   },
+   "widgets_values": [
+    9
+   ],
+   "title": "Decode and merge (keeps RGBA)"
+  },
+  {
+   "id": 13,
+   "type": "SaveImage",
+   "pos": [
+    180,
+    220
+   ],
+   "size": [
+    400,
+    420
+   ],
+   "flags": {},
+   "order": 13,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "images",
+     "name": "images",
+     "type": "IMAGE",
+     "link": 19
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "SaveImage",
+    "cnr_id": "comfy-core"
+   },
+   "widgets_values": [
+    "Qwen2.1_Transparent_Edit"
+   ]
+  },
+  {
+   "id": 14,
+   "type": "MarkdownNote",
+   "pos": [
+    -1180,
+    1420
+   ],
+   "size": [
+    900,
+    640
+   ],
+   "flags": {},
+   "order": 14,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "MarkdownNote",
+    "cnr_id": "comfy-core"
+   },
+   "widgets_values": [
+    "## Qwen-Image 2.1 + LanPaint, editing a transparent-background image\n\n**The point of this example** - the source already has an alpha channel, and the\nedit is allowed to change it. The rebuilt sole gets a *new* silhouette (it grows\npast the old outline), so transparency is being generated, not copied.\n\n**1. Why `Join Image With Alpha`** - `Load Image` never puts alpha on the IMAGE; it\nhands it out on its MASK output instead. The Qwen 2.1 VAE takes 4 channels natively\n(`encoder.conv1` wants 4), so the alpha has to be re-attached as the 4th channel\nbefore encoding. Note `Load Image`'s MASK is **1 - alpha** (1 = transparent), so it\ndrops straight into `Join Image With Alpha.alpha` without an invert - the 4th\nchannel then matches the file's own alpha and comes back untouched outside the mask.\n\n**2. The mask is a separate greyscale file** - white = rebuild. Keep it modest: this\nexample uses about 16% of the frame. LanPaint anchors everything outside the mask to\nthe ground truth each step, so a mask that swallows most of the picture leaves the\nmodel without context - past roughly a third of the frame the result turns to\nblotches and the alpha starts growing a halo.\n\n**3. Output** - `LanPaint_ImageDecode` keeps the channel count of the input image, so\nan RGBA source comes back RGBA. An RGB source still comes back RGB.\n\nModels: `qwen_image_2.1_int8_convrot` + `qwen3vl_8b_int8_convrot` + `qwen_image_2.1_vae_bf16`."
+   ],
+   "title": "How this works (and the mask size trap)",
+   "color": "#432",
+   "bgcolor": "#653"
+  }
+ ],
+ "links": [
+  [
+   1,
+   1,
+   0,
+   4,
+   0,
+   "MODEL"
+  ],
+  [
+   2,
+   4,
+   0,
+   11,
+   0,
+   "MODEL"
+  ],
+  [
+   3,
+   2,
+   0,
+   8,
+   0,
+   "CLIP"
+  ],
+  [
+   4,
+   2,
+   0,
+   9,
+   0,
+   "CLIP"
+  ],
+  [
+   5,
+   3,
+   0,
+   8,
+   2,
+   "VAE"
+  ],
+  [
+   6,
+   3,
+   0,
+   10,
+   1,
+   "VAE"
+  ],
+  [
+   7,
+   3,
+   0,
+   12,
+   1,
+   "VAE"
+  ],
+  [
+   8,
+   5,
+   0,
+   6,
+   0,
+   "IMAGE"
+  ],
+  [
+   9,
+   5,
+   1,
+   6,
+   1,
+   "MASK"
+  ],
+  [
+   10,
+   6,
+   0,
+   8,
+   3,
+   "IMAGE"
+  ],
+  [
+   11,
+   6,
+   0,
+   10,
+   0,
+   "IMAGE"
+  ],
+  [
+   12,
+   6,
+   0,
+   12,
+   2,
+   "IMAGE"
+  ],
+  [
+   13,
+   7,
+   0,
+   10,
+   2,
+   "MASK"
+  ],
+  [
+   14,
+   7,
+   0,
+   12,
+   3,
+   "MASK"
+  ],
+  [
+   15,
+   8,
+   0,
+   11,
+   1,
+   "CONDITIONING"
+  ],
+  [
+   16,
+   9,
+   0,
+   11,
+   2,
+   "CONDITIONING"
+  ],
+  [
+   17,
+   10,
+   0,
+   11,
+   3,
+   "LATENT"
+  ],
+  [
+   18,
+   11,
+   0,
+   12,
+   0,
+   "LATENT"
+  ],
+  [
+   19,
+   12,
+   0,
+   13,
+   0,
+   "IMAGE"
+  ]
+ ],
+ "groups": [
+  {
+   "id": 1,
+   "title": "Step 1 - Load models",
+   "bounding": [
+    -1190,
+    0,
+    420,
+    400
+   ],
+   "color": "#3f789e",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 2,
+   "title": "Step 2 - Picture + its alpha + the mask",
+   "bounding": [
+    -1190,
+    380,
+    880,
+    1020
+   ],
+   "color": "#3f789e",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 3,
+   "title": "Step 3 - Texts",
+   "bounding": [
+    -750,
+    490,
+    460,
+    480
+   ],
+   "color": "#3f789e",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 4,
+   "title": "Step 4 - LanPaint: encode, sample, decode",
+   "bounding": [
+    -250,
+    0,
+    840,
+    520
+   ],
+   "color": "#3f789e",
+   "font_size": 24,
+   "flags": {}
+  }
+ ],
+ "config": {},
+ "extra": {
+  "ds": {
+   "scale": 0.55,
+   "offset": [
+    1210,
+    180
+   ]
+  },
+  "workflowRendererVersion": "LG"
+ },
+ "version": 0.4
+}

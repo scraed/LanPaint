@@ -1370,6 +1370,18 @@ class LanPaint_ImageDecode:
             )
         if image is None:
             return (img,)
+        # Some VAEs decode to more channels than the source image: the Qwen Image
+        # 2.1 VAE always emits a 4th channel for RGB input. ComfyUI's IMAGE type is
+        # RGB, so trim to the original's channel count - which is what ComfyUI's own
+        # RGBA -> RGB conversion does, compositing over white - and the merge below
+        # can broadcast. Without this it raises
+        # "The size of tensor a (3) must match the size of tensor b (4)".
+        img_channels, orig_channels = img.shape[-1], image.shape[-1]
+        if img_channels > orig_channels:
+            img = img[..., :orig_channels]
+        elif img_channels < orig_channels:
+            pad = img.new_ones(img.shape[:-1] + (orig_channels - img_channels,))
+            img = torch.cat((img, pad), dim=-1)
         target_h, target_w = image.shape[1], image.shape[2]
         if tuple(img.shape[1:3]) != (target_h, target_w):
             img = torch.nn.functional.interpolate(
@@ -1380,6 +1392,10 @@ class LanPaint_ImageDecode:
             ).movedim(1, -1)
         if mask is None:
             return (img,)
+        # Keep the merge channel-agnostic: an RGBA image (a source that carries its
+        # own alpha, e.g. a Qwen Image 2.1 transparent-background render) keeps its
+        # 4th channel all the way through, so transparency can be inpainted alongside
+        # the content. An RGB image still comes back as RGB.
         return (merge_video_with_mask(image, img, mask, blend_overlap),)
 
 
