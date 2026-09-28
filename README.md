@@ -58,11 +58,11 @@ If your inpainting results have wierd (glowing / broken) mask boundary, check th
 
 ![Qwen 2.1 image edit: the canvas, the mask, the second reference and the result](https://github.com/scraed/LanPaint/blob/master/examples/Example_32/Comparison.png)
 
-Qwen 2.1's **image edit** model runs under a LanPaint mask: hand `Text Encode Qwen Image 2.1` your canvas as `<image1>` plus any extra reference images, mask the part you want changed, and only that part follows the instruction. Check our latest [Qwen Image 2.1 Image Edit Example](#example-qwen-image-21-image-edit-masked-inpaintlanpaint-k-sampler-5-steps-of-thinking).
+Qwen 2.1's **image edit** model now works under a LanPaint mask: tell it what to change, paint over the part you want it to touch, and only that part changes. Hand it a second picture to borrow from if you want one. Check our latest [Qwen Image 2.1 Image Edit Example](#example-qwen-image-21-image-edit-masked-inpaintlanpaint-k-sampler-5-steps-of-thinking).
 
 ![Qwen 2.1 before / masked / after](https://github.com/scraed/LanPaint/blob/master/examples/Example_31/Comparison.png)
 
-And if your picture carries an alpha channel, it gets inpainted too - the masked region comes back with a new silhouette, not just new pixels. Check our latest [Qwen Image 2.1 Example](#example-qwen-image-21-inpaint-with-transparencylanpaint-k-sampler-5-steps-of-thinking).
+And if your picture carries transparency, it gets inpainted too - the rebuilt part comes back with a new outline, not just new colours. Check our latest [Qwen Image 2.1 Example](#example-qwen-image-21-inpaint-with-transparencylanpaint-k-sampler-5-steps-of-thinking).
 
 **🎬 NEW: LanPaint now supports MiniMax H3 video + audio inpainting!**
 
@@ -462,17 +462,17 @@ Check [Mased Qwen Edit Workflow](https://github.com/scraed/LanPaint/tree/master/
 
 ### Example Qwen Image 2.1 Image Edit: Masked InPaint(LanPaint K Sampler, 5 steps of thinking)
 
-Qwen-Image 2.1's image edit model works under a mask. `Text Encode Qwen Image 2.1` takes your canvas as `<image1>` plus any extra references, and it is the only 2.1 text encoder that feeds the VAE all four channels (the older `Text Encode Qwen Image Edit Plus` trims a reference to RGB). Add `LanPaint_ImageEncode` with a mask and the instruction only lands inside that mask - here a second reference supplies the material, the earcups are rebuilt as oversized iridescent turbines that flare out over what used to be transparent background, and the headband, stitching and hinges come back pixel-identical. Grab the workflow and images from `examples/Example_32` (or drag `InPainted_Drag_Me_to_ComfyUI.png` into ComfyUI); use your own pictures from the official [Qwen Image 2.1 Image Edit template](https://docs.comfy.org/tutorials/image/qwen/qwen-image-2-1).
+Qwen-Image 2.1's image edit model now works under a LanPaint mask: write what you want changed, paint over the part it should touch, and only that part changes - everything else, transparency included, comes back exactly as it was. In this example a second picture supplies the material for the earcups, and the headband and stitching stay as they are. Workflow and images are in `examples/Example_32`; drag `InPainted_Drag_Me_to_ComfyUI.png` into ComfyUI to load it. Use your own pictures with the official [Qwen Image 2.1 Image Edit template](https://docs.comfy.org/tutorials/image/qwen/qwen-image-2-1).
 
 ![Qwen 2.1 image edit: canvas, mask, material, result](https://github.com/scraed/LanPaint/blob/master/examples/Example_32/Comparison.png)
 [View Workflow & Masks](https://github.com/scraed/LanPaint/tree/master/examples/Example_32) · [Workflow JSON](https://github.com/scraed/LanPaint/blob/master/example_workflows/Qwen_Image_2.1_Edit_Masked_Inpaint.json)
 
 ### Example Qwen Image 2.1: InPaint with Transparency(LanPaint K Sampler, 5 steps of thinking)
 
-Qwen-Image 2.1 works with LanPaint, and pictures that carry transparency are inpainted along with their alpha channel - the mask region gets a new silhouette, not just new pixels. Grab the workflow and images from `examples/Example_31` (or drag `InPainted_Drag_Me_to_ComfyUI.png` into ComfyUI), point `Load Image` at your RGBA picture, `Load Image (as Mask)` at your mask in greyscale (white = repaint), and write your prompt. Compared to any other LanPaint workflow the only addition is one `Join Image With Alpha` node, which re-attaches the picture's alpha - `Load Image` hands it out on its `MASK` output rather than keeping it on the image - and `LanPaint_ImageDecode` then returns RGBA if that is what it received.
+Qwen-Image 2.1 inpaints a picture's transparency along with its pixels, so the rebuilt part can come back with a new outline instead of merely new colours - here the boot's sole is replaced and the silhouette grows with it. Workflow and images are in `examples/Example_31`; drag `InPainted_Drag_Me_to_ComfyUI.png` into ComfyUI to load it.
 
-![Qwen 2.1 before / masked / after](https://github.com/scraed/LanPaint/blob/master/examples/Example_31/Comparison.png)
-[View Workflow & Masks](https://github.com/scraed/LanPaint/tree/master/examples/Example_31)
+![Qwen 2.1: original, mask, result](https://github.com/scraed/LanPaint/blob/master/examples/Example_31/Comparison.png)
+[View Workflow & Masks](https://github.com/scraed/LanPaint/tree/master/examples/Example_31) · [Workflow JSON](https://github.com/scraed/LanPaint/blob/master/example_workflows/Transparent_Edit_EncodeDecode_Inpaint.json)
 
 ### Example Qwen Image: InPaint(LanPaint K Sampler, 5 steps of thinking)
 
@@ -659,7 +659,7 @@ Submit a PR to add your tutorial/video here, or open an [Issue](https://github.c
 
 ## Updates
 - 2026/09/28
-    - Add Qwen-Image 2.1 image edit support: masked, instruction-driven editing with `Text Encode Qwen Image 2.1` (Example_32).
+    - Add Qwen-Image 2.1 image edit support: masked, instruction-driven editing (Example_32).
     - Add Qwen-Image 2.1 inpainting support with LanPaint KSampler (Example_31).
     - Inpainting a picture that carries transparency now works end to end: the 2.1 VAE is 4-in/4-out, so the alpha travels through the latent and is edited alongside the pixels. Keep the inpainting mask in its own greyscale file, since 2.1's alpha channel means image transparency.
     - `LanPaint_ImageDecode` now matches the decoded channel count to the source image, so an RGBA source comes back RGBA and an RGB source still comes back RGB.
