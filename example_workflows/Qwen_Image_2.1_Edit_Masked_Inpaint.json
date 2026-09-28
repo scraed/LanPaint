@@ -435,7 +435,7 @@
     "cnr_id": "comfy-core"
    },
    "widgets_values": [
-    "The earcups of the headphones in <image1> are re-surfaced with the iridescent oil-slick titanium from <image2>: the exact same cup shapes, proportions and thickness as <image1>, now in mirror-polished rainbow metal with flowing cyan, magenta, violet and gold bands and a fine brushed grain. The headband, its stitching, the yokes and the hinges stay exactly as they are in <image1>. Studio product photography on a transparent background.",
+    "The earcups of the headphones in <image1> are rebuilt as oversized iridescent turbine cups faced with the oil-slick titanium from <image2>: larger than the originals and flaring out past their old outline into the empty space around them, radiating machined blades, mirror-polished rainbow metal with flowing cyan, magenta, violet and gold bands and a fine brushed grain. The headband, its stitching, the yokes and the hinges stay exactly as they are in <image1>. Studio product photography on a transparent background.",
     "",
     1024
    ],
@@ -775,7 +775,7 @@
     "cnr_id": "comfy-core"
    },
    "widgets_values": [
-    "## Qwen-Image 2.1 Image Edit + LanPaint, with a mask and with transparency\n\nThis is the official `Qwen Image 2.1 Image Edit` template with a mask bolted on. The edit\ninstruction names the references as `<image1>` / `<image2>`; `image_1` is the canvas,\n`image_2` is the material being borrowed.\n\nThe mask is what makes it inpainting rather than a re-render: LanPaint anchors everything\noutside it to the original on every step, so the headband, the stitching and the hinges come\nback untouched instead of merely similar. Keep the mask modest (about 15% of the frame here).\n\nTransparency survives because `Join Image With Alpha` puts the picture's alpha back on as a\n4th channel - `Load Image` hands alpha out on its `MASK` output, and that mask is `1 - alpha`,\nwhich is what this node wants, so there is no invert. `LanPaint_ImageDecode` then returns RGBA."
+    "## Qwen-Image 2.1 Image Edit + LanPaint, with a mask and with transparency\n\nThis is the official `Qwen Image 2.1 Image Edit` template with a mask bolted on. The edit\ninstruction names the references as `<image1>` / `<image2>`; `image_1` is the canvas,\n`image_2` is the material being borrowed.\n\nAlpha is a real channel here, not a mask bolted on at the end. `Text Encode Qwen Image 2.1`\nfeeds the vision tower the alpha composited over white, but hands the VAE all four channels,\nand `LanPaint_ImageEncode` encodes the picture as it arrives - so the alpha is denoised\nalongside the pixels and the rebuilt region can grow a new silhouette. `Join Image With\nAlpha` is what puts the alpha back on the image: `Load Image` hands alpha out on its `MASK`\noutput, and that mask is `1 - alpha`, which is exactly what this node wants, so there is no\ninvert. `LanPaint_ImageDecode` then returns RGBA.\n\nThe mask is a separate greyscale file, white = edit here, and it is deliberately larger than\nthe earcups so the new shape has room to flare out over what used to be transparent\nbackground. Everything outside it is anchored to the original on every step, so the headband,\nthe stitching and the hinges come back untouched rather than merely similar."
    ],
    "title": "How this works",
    "color": "#432",
