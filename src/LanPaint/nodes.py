@@ -192,13 +192,19 @@ def _sanitize_param(value, default, allowed=None):
 def prepare_mask(noise_mask, shape, device,video_inpainting=False):
     return reshape_mask(noise_mask, shape,video_inpainting).to(device)
 def sampling_function_LanPaint(model, x, timestep, uncond, cond, cond_scale, cond_scale_BIG, model_options={}, seed=None):
-    if math.isclose(cond_scale, 1.0) and model_options.get("disable_cfg1_optimization", False) == False:
+    # Both guidance outputs need the negative branch unless both scales are one.
+    if math.isclose(cond_scale, 1.0) and math.isclose(cond_scale_BIG, 1.0) and not model_options.get("disable_cfg1_optimization", False):
         uncond_ = None
     else:
         uncond_ = uncond
 
     conds = [cond, uncond_]
-    out = calc_cond_batch(model, conds, x, timestep, model_options)
+    # Match ComfyUI's dispatch so native SkipLayerGuidance remains active.
+    if "sampler_calc_cond_batch_function" in model_options:
+        args = {"conds": conds, "input": x, "sigma": timestep, "model": model, "model_options": model_options}
+        out = model_options["sampler_calc_cond_batch_function"](args)
+    else:
+        out = calc_cond_batch(model, conds, x, timestep, model_options)
 
     for fn in model_options.get("sampler_pre_cfg_function", []):
         args = {"conds":conds, "conds_out": out, "cond_scale": cond_scale, "timestep": timestep,
@@ -1330,6 +1336,66 @@ class LanPaint_ImageEncode:
         return (latent,)
 
 
+class LanPaint_MOSSImageEncode:
+    """Encode a MOSS source with a conservative 16-by-16 latent edit mask.
+
+    Native MOSS uses Flux2 latents [B, 128, H/16, W/16]. Max pooling keeps
+    thin pixel edits that nearest-neighbor mask resizing can discard.
+    """
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": ("IMAGE", {"tooltip": "RGB source; width and height must be multiples of 16."}),
+                "vae": ("VAE", {"tooltip": "The native MOSS Flux2 VAE."}),
+                "mask": ("MASK", {"tooltip": "Pixel mask: 1 = regenerate, 0 = keep. Must match the source dimensions."}),
+            },
+            "optional": {
+                "source_fill": (
+                    ["neutral", "source"],
+                    {"default": "neutral", "tooltip": "Neutral fills the edit region with gray; source retains its content."},
+                ),
+                "dilation": (
+                    "INT",
+                    {"default": 0, "min": 0, "max": 128, "tooltip": "Expand the mask in source pixels before latent pooling."},
+                ),
+            },
+        }
+
+    RETURN_TYPES = ("LATENT",)
+    RETURN_NAMES = ("latent",)
+    FUNCTION = "encode"
+    CATEGORY = "image"
+    DESCRIPTION = "Encode a MOSS image with a latent mask that preserves thin pixel edits."
+
+    def encode(self, image, vae, mask, source_fill="neutral", dilation=0):
+        if image.ndim != 4 or image.shape[-1] != 3:
+            raise ValueError("MOSS requires an RGB source [B, H, W, 3].")
+        if mask.ndim == 2:
+            mask = mask.unsqueeze(0)
+        if tuple(mask.shape) != tuple(image.shape[:3]):
+            raise ValueError("MOSS source and mask must have identical dimensions and batch size.")
+        if min(image.shape[1:3]) <= 0 or any(n % 16 for n in image.shape[1:3]):
+            raise ValueError("MOSS image width and height must be positive multiples of 16.")
+        if not torch.isfinite(image).all() or not torch.isfinite(mask).all():
+            raise ValueError("MOSS source and mask must contain finite values.")
+        if source_fill not in ("neutral", "source"):
+            raise ValueError("MOSS source_fill must be neutral or source.")
+        if not isinstance(dilation, int) or not 0 <= dilation <= 128:
+            raise ValueError("MOSS dilation must be an integer between 0 and 128.")
+        edit = (mask > 0.5).to(image)
+        pixels = torch.where(edit.unsqueeze(-1).bool(), 128 / 255, image) if source_fill == "neutral" else image
+        z = vae.encode(pixels)
+        expected = (image.shape[0], 128, image.shape[1] // 16, image.shape[2] // 16)
+        if tuple(z.shape) != expected:
+            raise ValueError("MOSS requires native Flux2 latents [B, 128, H/16, W/16].")
+        edit = edit.float().unsqueeze(1)
+        if dilation:
+            edit = torch.nn.functional.max_pool2d(edit, 2 * dilation + 1, stride=1, padding=dilation)
+        return ({"samples": z, "noise_mask": torch.nn.functional.max_pool2d(edit, 16, stride=16)},)
+
+
 class LanPaint_ImageDecode:
     """Decode an inpainted latent and merge it with the original image.
 
@@ -1413,6 +1479,7 @@ NODE_CLASS_MAPPINGS = {
     "LanPaint_AVEncode": LanPaint_AVEncode,
     "LanPaint_AVDecode": LanPaint_AVDecode,
     "LanPaint_ImageEncode": LanPaint_ImageEncode,
+    "LanPaint_MOSSImageEncode": LanPaint_MOSSImageEncode,
     "LanPaint_ImageDecode": LanPaint_ImageDecode,
 #    "LanPaint_UpSale_LatentNoiseMask": LanPaint_UpSale_LatentNoiseMask,
 }
@@ -1430,6 +1497,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LanPaint_AVEncode": "LanPaint AV Encode",
     "LanPaint_AVDecode": "LanPaint AV Decode",
     "LanPaint_ImageEncode": "LanPaint Image Encode",
+    "LanPaint_MOSSImageEncode": "LanPaint MOSS Image Encode",
     "LanPaint_ImageDecode": "LanPaint Image Decode",
 #    "LanPaint_UpSale_LatentNoiseMask": "LanPaint UpSale Latent Noise Mask"
 }
